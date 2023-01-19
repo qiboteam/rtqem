@@ -3,6 +3,8 @@
 import qibo
 from qibo import gates, hamiltonians, derivative
 from qibo.models import Circuit
+from qibo.models.error_mitigation import CDR
+from qibo.symbols import Z
 
 # some useful python package
 import numpy as np
@@ -38,7 +40,13 @@ class vqregressor:
     c = Circuit(nqubits)
     for q in range(nqubits):
       for l in range(layers):
-        c.add(gates.RY(q=q, theta=0))
+        # decomposition of RY gate
+        c.add([
+          gates.RX(q=q, theta=np.pi/2, trainable=False),
+          gates.RZ(q=q, theta=0+np.pi),
+          gates.RX(q=q, theta=np.pi/2, trainable=False),
+          gates.RZ(q=q, theta=np.pi, trainable=False)
+        ])
         c.add(gates.RZ(q=q, theta=0))
     c.add(gates.M(0))
 
