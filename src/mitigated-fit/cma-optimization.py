@@ -15,4 +15,4 @@ result, best_params = VQR.cma_optimization()
 VQR.show_predictions('predictions_cma', save=True)
 
 # save best params
-np.save("results/best_params_cma", VQR.params)
+np.save("results/best_params_cma", best_params)
