@@ -15,13 +15,20 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
     self.layers = layers
     self.data = data
     self.labels = labels
+    self.backend = backend
+    self.noise_model = noise_model
+    
+    if backend is None:  # pragma: no cover
+      from qibo.backends import GlobalBackend
+
+      self.backend = GlobalBackend()
 
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
@@ -88,7 +95,18 @@ class vqregressor:
     prob = self.circuit(nshots=1000).probabilities(qubits=[0])
     return prob[0] - prob[1]
 
-
+  def one_mitigated_prediction(self, x):
+    """This function calculates one mitigated prediction with fixed x."""
+    self.inject_data(x)
+    return CDR(
+      circuit=self.circuit,
+      observable=np.prod([ Z(i) for i in range(self.nqubits) ]),
+      noise_model=self.noise_model,
+      backend=self.backend,
+      nshots=1000,
+      full_output=False,
+    )
+  
   def predict_sample(self):
     """This function returns all predictions."""
     predictions = []
