@@ -1,7 +1,8 @@
 
 # import qibo's packages
 import qibo
-from qibo import gates, hamiltonians, derivative
+from qibo import gates
+from qibo.hamiltonians import SymbolicHamiltonian
 from qibo.models import Circuit
 from qibo.models.error_mitigation import CDR
 from qibo.symbols import Z
@@ -15,7 +16,7 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
@@ -23,6 +24,13 @@ class vqregressor:
     self.data = data
     self.labels = labels
     self.ndata = len(labels)
+    self.backend = backend
+    self.noise_model = noise_model
+    self.nshots = nshots
+    if backend is None:  # pragma: no cover
+      from qibo.backends import GlobalBackend
+
+      self.backend = GlobalBackend()
 
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
@@ -38,7 +46,7 @@ class vqregressor:
 
   def ansatz(self, nqubits, layers):
     """Here we implement the variational model ansatz."""
-    c = Circuit(nqubits)
+    c = Circuit(nqubits, density_matrix=True)
     for q in range(nqubits):
       for l in range(layers):
         # decomposition of RY gate
@@ -86,10 +94,26 @@ class vqregressor:
   def one_prediction(self, x):
     """This function calculates one prediction with fixed x."""
     self.inject_data(x)
-    prob = self.circuit(nshots=1000).probabilities(qubits=[0])
-    return prob[0] - prob[1]
+    if self.noise_model != None:
+      circuit = self.noise_model.apply(self.circuit)
+    else:
+      circuit = self.circuit
+    obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])))
+    return obs
 
-
+  def one_mitigated_prediction(self, x):
+    """This function calculates one mitigated prediction with fixed x."""
+    self.inject_data(x)
+    return CDR(
+      circuit=self.circuit,
+      observable=SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])),
+      noise_model=self.noise_model,
+      backend=self.backend,
+      nshots=self.nshots,
+      full_output=False,
+      n_training_samples=10,
+    )
+  
   def predict_sample(self):
     """This function returns all predictions."""
     predictions = []
