@@ -9,12 +9,10 @@ data = np.random.uniform(-1, 1, ndata)
 labels = np.sin(2*data)
 
 VQR = vqregressor(layers=1, data=data, labels=labels)
-# set the training hyper-parameters
-epochs = 50
-learning_rate = 0.1
 
 # perform the training
-history = VQR.gradient_descent(learning_rate=learning_rate, epochs=epochs)
-VQR.show_predictions('predictions_psr', save=True)
+result, best_params = VQR.cma_optimization()
+VQR.show_predictions('predictions_cma', save=True)
 
-np.save("results/best_params_psr", VQR.params)
+# save best params
+np.save("results/best_params_cma", best_params)
