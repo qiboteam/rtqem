@@ -3,7 +3,8 @@ import numpy as np
 from vqregressor import vqregressor
 from qibo.noise import NoiseModel, DepolarizingError
 from qibo import gates
-ndata = 20
+
+ndata = 10
 # random data
 data = np.random.uniform(-1, 1, ndata)
 # labeling them
@@ -15,10 +16,10 @@ noise.add(DepolarizingError(lam=0.25), gates.RZ)
 VQR = vqregressor(layers=1, data=data, labels=labels, noise_model=None)
 # set the training hyper-parameters
 epochs = 50
-learning_rate = 0.08
+learning_rate = 0.1
 
 # perform the training
 history = VQR.gradient_descent(learning_rate=learning_rate, epochs=epochs)
-VQR.show_predictions('Predictions', save=True)
+VQR.show_predictions('predictions_psr', save=True)
 
-np.save("best_params", VQR.params)
+np.save("results/best_params_psr", VQR.params)

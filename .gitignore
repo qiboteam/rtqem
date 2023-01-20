@@ -137,3 +137,6 @@ tmp/
 
 # images
 *png
+
+# default outputs of cma optimization
+outcmaes/
