@@ -3,6 +3,8 @@
 import qibo
 from qibo import gates, hamiltonians, derivative
 from qibo.models import Circuit
+from qibo.models.error_mitigation import CDR
+from qibo.symbols import Z
 
 # some useful python package
 import numpy as np
@@ -20,6 +22,7 @@ class vqregressor:
     self.layers = layers
     self.data = data
     self.labels = labels
+    self.ndata = len(labels)
 
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
@@ -38,7 +41,14 @@ class vqregressor:
     c = Circuit(nqubits)
     for q in range(nqubits):
       for l in range(layers):
-        c.add(gates.RY(q=q, theta=0))
+        # decomposition of RY gate
+        c.add([
+          gates.RX(q=q, theta=np.pi/2, trainable=False),
+          gates.RZ(q=q, theta=0),
+          gates.RZ(q=q, theta=np.pi, trainable=False),
+          gates.RX(q=q, theta=np.pi/2, trainable=False),
+          gates.RZ(q=q, theta=np.pi, trainable=False)
+        ])
         c.add(gates.RZ(q=q, theta=0))
     c.add(gates.M(0))
 
@@ -164,6 +174,45 @@ class vqregressor:
     return loss_history
 
 
+# ------------------------ LOSS FUNCTION ---------------------------------------
+
+  
+  def loss(self, params=None):
+    """This function calculates the loss function for the entire sample."""
+
+    # it can be useful to pass parameters as argument when we perform the cma
+    if params is None:
+      params = self.params
+
+    loss = 0
+    self.set_parameters(params)
+
+    for x, label in zip(self.data, self.labels):
+      prediction = self.one_prediction(x)
+      loss += (prediction -  label)**2
+    
+    return loss/self.ndata
+
+
+
+# ---------------------------- CMA OPTIMIZATION --------------------------------
+
+  def cma_optimization(self):
+      """Method which performs a GA optimization."""
+      
+      myloss = self.loss
+      # this can be used to stop the optimization once reached a target J value
+      # it must be added as argument of cma.fmin2 by typing options=options
+      options = {'ftarget':5e-5}
+      import cma
+
+      r = cma.fmin2(lambda p: myloss(p), self.params, 2, options=options)
+      result = r[1].result.fbest
+      parameters = r[1].result.xbest
+      
+      return result, parameters
+
+
 # ---------------------- PLOTTING FUNCTION -------------------------------------
 
   def show_predictions(self, title, save=False):
@@ -184,7 +233,7 @@ class vqregressor:
 
     # we save all the images during the training in order to see the evolution
     if save:
-      plt.savefig(str(title)+'.png')
+      plt.savefig('results/'+str(title)+'.png')
       plt.close()
 
     plt.show()
