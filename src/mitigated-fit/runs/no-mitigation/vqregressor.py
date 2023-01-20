@@ -1,8 +1,11 @@
 
 # import qibo's packages
 import qibo
-from qibo import gates, hamiltonians, derivative
+from qibo import gates
+from qibo.hamiltonians import SymbolicHamiltonian
 from qibo.models import Circuit
+from qibo.models.error_mitigation import CDR
+from qibo.symbols import Z
 
 # some useful python package
 import numpy as np
@@ -13,13 +16,21 @@ qibo.set_backend('qibolab', platform='tii1q_b1')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
     self.layers = layers
     self.data = data
     self.labels = labels
+    self.ndata = len(labels)
+    self.backend = backend
+    self.noise_model = noise_model
+    self.nshots = nshots
+    if backend is None:  # pragma: no cover
+      from qibo.backends import GlobalBackend
+
+      self.backend = GlobalBackend()
 
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
@@ -35,10 +46,17 @@ class vqregressor:
 
   def ansatz(self, nqubits, layers):
     """Here we implement the variational model ansatz."""
-    c = Circuit(nqubits)
+    c = Circuit(nqubits, density_matrix=True)
     for q in range(nqubits):
       for l in range(layers):
-        c.add(gates.RY(q=q, theta=0))
+        # decomposition of RY gate
+        c.add([
+          gates.RX(q=q, theta=np.pi/2, trainable=False),
+          gates.RZ(q=q, theta=0),
+          gates.RZ(q=q, theta=np.pi, trainable=False),
+          gates.RX(q=q, theta=np.pi/2, trainable=False),
+          gates.RZ(q=q, theta=np.pi, trainable=False)
+        ])
         c.add(gates.RZ(q=q, theta=0))
     c.add(gates.M(0))
 
@@ -76,10 +94,26 @@ class vqregressor:
   def one_prediction(self, x):
     """This function calculates one prediction with fixed x."""
     self.inject_data(x)
-    prob = self.circuit(nshots=1000).probabilities(qubits=[0])
-    return prob[0] - prob[1]
+    if self.noise_model != None:
+      circuit = self.noise_model.apply(self.circuit)
+    else:
+      circuit = self.circuit
+    obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])))
+    return obs
 
-
+  def one_mitigated_prediction(self, x):
+    """This function calculates one mitigated prediction with fixed x."""
+    self.inject_data(x)
+    return CDR(
+      circuit=self.circuit,
+      observable=SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])),
+      noise_model=self.noise_model,
+      backend=self.backend,
+      nshots=self.nshots,
+      full_output=False,
+      n_training_samples=10,
+    )
+  
   def predict_sample(self):
     """This function returns all predictions."""
     predictions = []
@@ -164,6 +198,45 @@ class vqregressor:
     return loss_history
 
 
+# ------------------------ LOSS FUNCTION ---------------------------------------
+
+  
+  def loss(self, params=None):
+    """This function calculates the loss function for the entire sample."""
+
+    # it can be useful to pass parameters as argument when we perform the cma
+    if params is None:
+      params = self.params
+
+    loss = 0
+    self.set_parameters(params)
+
+    for x, label in zip(self.data, self.labels):
+      prediction = self.one_prediction(x)
+      loss += (prediction -  label)**2
+    
+    return loss/self.ndata
+
+
+
+# ---------------------------- CMA OPTIMIZATION --------------------------------
+
+  def cma_optimization(self):
+      """Method which performs a GA optimization."""
+      
+      myloss = self.loss
+      # this can be used to stop the optimization once reached a target J value
+      # it must be added as argument of cma.fmin2 by typing options=options
+      options = {'ftarget':5e-5}
+      import cma
+
+      r = cma.fmin2(lambda p: myloss(p), self.params, 2, options=options)
+      result = r[1].result.fbest
+      parameters = r[1].result.xbest
+      
+      return result, parameters
+
+
 # ---------------------- PLOTTING FUNCTION -------------------------------------
 
   def show_predictions(self, title, save=False):
@@ -184,7 +257,7 @@ class vqregressor:
 
     # we save all the images during the training in order to see the evolution
     if save:
-      plt.savefig(str(title)+'.png')
+      plt.savefig('results/'+str(title)+'.png')
       plt.close()
 
     plt.show()
