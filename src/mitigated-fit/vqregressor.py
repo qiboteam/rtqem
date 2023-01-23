@@ -88,6 +88,11 @@ class vqregressor:
         """Function which sets the new parameters into the circuit"""
         self.params = new_params
 
+  
+  def get_parameters(self):
+    """Functions which saves the current variational parameters"""
+    return self.params
+
 
 # ------------------------------- PREDICTIONS ----------------------------------
 
@@ -182,18 +187,29 @@ class vqregressor:
     return dloss, loss/len(self.data)
   
 
-  def gradient_descent(self, learning_rate, epochs):
+  def gradient_descent(self, learning_rate, epochs, restart_from_epoch=None):
     """This function performs a full gradient descent strategy."""
 
+    # resuming old training
+    if restart_from_epoch is not None:
+      resume_params = np.load(f"results/params_psr/params_epoch_{restart_from_epoch}.npy")
+      self.set_parameters(resume_params)
+    
+    else:
+      restart_from_epoch = 0
+    
     # we want to keep track of the loss function
     loss_history = []
 
     # the gradient descent strategy
-    for epoch in range(epochs):
+    for epoch in range(restart_from_epoch, epochs + restart_from_epoch):
       dloss, loss = self.evaluate_loss_gradients()
       loss_history.append(loss)
       self.params -= learning_rate * dloss
+      # print loss value
       print(f'Loss at epoch: {epoch + 1} ', loss)
+      # save current parameters
+      np.save(f'results/params_psr/params_epoch_{epoch+1}', self.params)
     
     return loss_history
 
