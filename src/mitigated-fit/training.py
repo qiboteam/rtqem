@@ -16,10 +16,10 @@ noise.add(DepolarizingError(lam=0.25), gates.RZ)
 VQR = vqregressor(layers=1, data=data, labels=labels, noise_model=None)
 # set the training hyper-parameters
 epochs = 50
-learning_rate = 0.1
+learning_rate = 0.08
 
 # perform the training
-history = VQR.gradient_descent(learning_rate=learning_rate, epochs=epochs)
+history = VQR.gradient_descent(learning_rate=learning_rate, epochs=epochs, restart_from_epoch=None)
 VQR.show_predictions('predictions_psr', save=True)
 
 np.save("results/best_params_psr", VQR.params)
