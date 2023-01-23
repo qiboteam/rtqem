@@ -4,7 +4,7 @@ import qibo
 from qibo import gates
 from qibo.hamiltonians import SymbolicHamiltonian
 from qibo.models import Circuit
-from qibo.models.error_mitigation import CDR
+from qibo.models import error_mitigation
 from qibo.symbols import Z
 
 # some useful python package
@@ -16,7 +16,7 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, mitigation=None, mit_kwargs={}):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
@@ -27,10 +27,15 @@ class vqregressor:
     self.backend = backend
     self.noise_model = noise_model
     self.nshots = nshots
+    self.mitigation = mitigation
+    self.mit_kwargs = mit_kwargs
+    
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
 
       self.backend = GlobalBackend()
+    if mitigation is not None:
+      self.mitigation = getattr(error_mitigation, mitigation)
 
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
@@ -93,6 +98,8 @@ class vqregressor:
 
   def one_prediction(self, x):
     """This function calculates one prediction with fixed x."""
+    if self.mitigation is not None:
+      return self.one_mitigated_prediction(x)
     self.inject_data(x)
     if self.noise_model != None:
       circuit = self.noise_model.apply(self.circuit)
@@ -104,14 +111,13 @@ class vqregressor:
   def one_mitigated_prediction(self, x):
     """This function calculates one mitigated prediction with fixed x."""
     self.inject_data(x)
-    return CDR(
+    return self.mitigation(
       circuit=self.circuit,
       observable=SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])),
       noise_model=self.noise_model,
       backend=self.backend,
       nshots=self.nshots,
-      full_output=False,
-      n_training_samples=10,
+      **self.mit_kwargs
     )
   
   def predict_sample(self):

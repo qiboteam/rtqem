@@ -13,7 +13,18 @@ labels = np.sin(2*data)
 noise = NoiseModel()
 noise.add(DepolarizingError(lam=0.25), gates.RZ)
 
-VQR = vqregressor(layers=1, data=data, labels=labels, noise_model=None)
+zne = ('ZNE', {'noise_levels':np.arange(5), 'insertion_gate':'RX'})
+cdr = ('CDR', {'n_training_samples':10})
+vncdr = ('vnCDR', {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX'})
+
+VQR = vqregressor(
+    layers=1,
+    data=data,
+    labels=labels,
+    noise_model=noise,
+    mitigation=cdr[0],
+    mit_kwargs=cdr[1]
+)
 # set the training hyper-parameters
 epochs = 50
 learning_rate = 0.1
