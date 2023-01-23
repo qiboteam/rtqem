@@ -140,3 +140,6 @@ tmp/
 
 # default outputs of cma optimization
 outcmaes/
+
+# training params history 
+*params_epoch_*
