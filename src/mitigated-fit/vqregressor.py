@@ -36,7 +36,7 @@ class vqregressor:
     self.circuit = self.ansatz(nqubits, layers)
 
     # get the number of parameters
-    self.nparams = nqubits * layers * 3
+    self.nparams = nqubits * layers * 4
     # set the initial value of the variational parameters
     self.params = np.random.randn(self.nparams)
     # scaling factor for custom parameter shift rule
@@ -71,14 +71,15 @@ class vqregressor:
     
     for q in range(self.nqubits):
       for l in range(self.layers):
-        # embed X
+        # embed x
         params.append(self.params[index] * x + self.params[index + 1])
-        params.append(self.params[index + 2])
+        params.append(self.params[index + 2] * x + self.params[index + 3])
         # update scale factors 
         # equal to x only when x is involved
         self.scale_factors[index] = x
+        self.scale_factors[index + 2] = x
         # we have three parameters per layer
-        index += 3
+        index += 4
 
     # update circuit's parameters
     self.circuit.set_parameters(params)
