@@ -13,10 +13,10 @@ labels = np.sin(2*data)
 noise = NoiseModel()
 noise.add(DepolarizingError(lam=0.25), gates.RZ)
 
-VQR = vqregressor(layers=1, data=data, labels=labels, noise_model=None)
+VQR = vqregressor(layers=2, data=data, labels=labels, noise_model=None, nshots=None)
 # set the training hyper-parameters
 epochs = 50
-learning_rate = 0.08
+learning_rate = 1e-2
 
 # perform the training
 history = VQR.gradient_descent(learning_rate=learning_rate, epochs=epochs, restart_from_epoch=None)
