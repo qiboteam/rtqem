@@ -14,7 +14,7 @@ labels = (2*data+2)**2*np.exp(-(2*data+2)**2/2)
 noise = NoiseModel()
 noise.add(DepolarizingError(lam=0.25), gates.RZ)
 
-VQR = vqregressor(layers=3, data=data, labels=labels, noise_model=None, nshots=None)
+VQR = vqregressor(layers=3, data=data, labels=labels, noise_model=None, nshots=1000, expectation_from_samples=False)
 # set the training hyper-parameters
 epochs = 50
 learning_rate = 1e-2

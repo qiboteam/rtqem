@@ -27,7 +27,7 @@ class vqregressor:
     self.backend = backend
     self.noise_model = noise_model
     self.nshots = nshots
-    self.exp_from_samples
+    self.exp_from_samples = expectation_from_samples
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
 
