@@ -27,6 +27,7 @@ class vqregressor:
     self.backend = backend
     self.noise_model = noise_model
     self.nshots = nshots
+
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
 
@@ -36,7 +37,7 @@ class vqregressor:
     self.circuit = self.ansatz(nqubits, layers)
 
     # get the number of parameters
-    self.nparams = nqubits * layers * 4
+    self.nparams = (nqubits * layers * 4) - 2
     # set the initial value of the variational parameters
     self.params = np.random.randn(self.nparams)
     # scaling factor for custom parameter shift rule
@@ -49,15 +50,25 @@ class vqregressor:
     c = Circuit(nqubits, density_matrix=True)
     for q in range(nqubits):
       for l in range(layers):
-        # decomposition of RY gate
-        c.add([
-          gates.RX(q=q, theta=np.pi/2, trainable=False),
-          gates.RZ(q=q, theta=0),
-          gates.RZ(q=q, theta=np.pi, trainable=False),
-          gates.RX(q=q, theta=np.pi/2, trainable=False),
-          gates.RZ(q=q, theta=np.pi, trainable=False)
-        ])
-        c.add(gates.RZ(q=q, theta=0))
+        if(l != self.layers - 1):
+          # decomposition of RY gate
+          c.add([
+            gates.RX(q=q, theta=np.pi/2, trainable=False),
+            gates.RZ(q=q, theta=0),
+            gates.RZ(q=q, theta=np.pi, trainable=False),
+            gates.RX(q=q, theta=np.pi/2, trainable=False),
+            gates.RZ(q=q, theta=np.pi, trainable=False)
+          ])
+          c.add(gates.RZ(q=q, theta=0))
+        else:
+          # if l last layer we drop the parametric RZ
+          c.add([
+            gates.RX(q=q, theta=np.pi/2, trainable=False),
+            gates.RZ(q=q, theta=0),
+            gates.RZ(q=q, theta=np.pi, trainable=False),
+            gates.RX(q=q, theta=np.pi/2, trainable=False),
+            gates.RZ(q=q, theta=np.pi, trainable=False)
+          ])
     c.add(gates.M(0))
 
     return c
@@ -71,15 +82,22 @@ class vqregressor:
     
     for q in range(self.nqubits):
       for l in range(self.layers):
-        # embed x
-        params.append(self.params[index] * x + self.params[index + 1])
-        params.append(self.params[index + 2] * x + self.params[index + 3])
-        # update scale factors 
-        # equal to x only when x is involved
-        self.scale_factors[index] = x
-        self.scale_factors[index + 2] = x
-        # we have three parameters per layer
-        index += 4
+        if(l != self.layers - 1):
+          # embed x
+          params.append(self.params[index] * x + self.params[index + 1])
+          params.append(self.params[index + 2] * x + self.params[index + 3])
+          # update scale factors 
+          # equal to x only when x is involved
+          self.scale_factors[index] = x
+          self.scale_factors[index + 2] = x
+          # we have four parameters per layer
+          index += 4
+        else:
+          # if last layer we drop the parametric RZ
+          params.append(self.params[index] * x + self.params[index + 1])
+          # update scale factors 
+          # equal to x only when x is involved
+          self.scale_factors[index] = x
 
     # update circuit's parameters
     self.circuit.set_parameters(params)
@@ -274,7 +292,7 @@ class vqregressor:
 
     # we save all the images during the training in order to see the evolution
     if save:
-      plt.savefig('results/'+str(title)+'.png')
+      plt.savefig('results/' + str(title) + '.png')
       plt.close()
 
     plt.show()

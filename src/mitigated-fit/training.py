@@ -4,19 +4,19 @@ from vqregressor import vqregressor
 from qibo.noise import NoiseModel, DepolarizingError
 from qibo import gates
 
-ndata = 30
+ndata = 50
 # random data
 data = np.random.uniform(-1, 1, ndata)
 # labeling them
-labels = np.tanh(2*data)
+labels = np.sin(4*data)**2 - np.cos(2*data)
 # noise model
 noise = NoiseModel()
 noise.add(DepolarizingError(lam=0.25), gates.RZ)
 
-VQR = vqregressor(layers=2, data=data, labels=labels, noise_model=None)
+VQR = vqregressor(layers=6, data=data, labels=labels, noise_model=None)
 # set the training hyper-parameters
-epochs = 50
-learning_rate = 1e-2
+epochs = 200
+learning_rate = 5e-3
 
 # perform the training
 history = VQR.gradient_descent(learning_rate=learning_rate, epochs=epochs, restart_from_epoch=None)
