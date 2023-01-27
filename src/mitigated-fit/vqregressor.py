@@ -129,6 +129,7 @@ class vqregressor:
 
 
 # ------------------------ PERFORMING GRADIENT DESCENT -------------------------
+# --------------------------- Parameter Shift Rule -----------------------------
 
   def parameter_shift(self, parameter_index, x):
     """This function performs the PSR for one parameter"""
@@ -149,6 +150,7 @@ class vqregressor:
     result = 0.5 * (forward - backward) * self.scale_factors[parameter_index]
     return result
 
+# ------------------------- Derivative of <O> ----------------------------------
 
   def circuit_derivative(self, x):
     """Derivatives of the expected value of the target observable with respect 
@@ -162,10 +164,19 @@ class vqregressor:
     
     return dcirc
 
+  
+# ---------------------- Derivative of the loss function -----------------------
 
-  def evaluate_loss_gradients(self):
+
+  def evaluate_loss_gradients(self, data=None, labels=None):
     """This function calculates the derivative of the loss function with respect
     to the variational parameters of the model."""
+
+    if data is None:
+      data = self.data
+    
+    if labels is None:
+      labels = self.labels
 
     # we need the derivative of the loss
     # nparams-long vector
@@ -174,7 +185,7 @@ class vqregressor:
     loss = 0
 
     # cycle on all the sample
-    for x, y in zip(self.data, self.labels):
+    for x, y in zip(data, labels):
       # calculate prediction
       prediction = self.one_prediction(x)
       # derivative of E[O] with respect all thetas
@@ -184,11 +195,81 @@ class vqregressor:
       loss += mse**2
       dloss += 2 * mse * dcirc
 
-    return dloss, loss/len(self.data)
-  
+    return dloss, loss/len(data)
 
-  def gradient_descent(self, learning_rate, epochs, restart_from_epoch=None):
-    """This function performs a full gradient descent strategy."""
+    
+# ---------------------- Update parameters if we use Adam ----------------------
+
+
+  def apply_adam(
+    self,
+    learning_rate,
+    m,
+    v,
+    data,
+    labels,
+    iteration,
+    beta_1=0.85,
+    beta_2=0.99,
+    epsilon=1e-8,
+  ):
+    """
+    Implementation of the Adam optimizer: during a run of this function parameters are updated.
+    Furthermore, new values of m and v are calculated.
+    Args:
+        learning_rate: np.float value of the learning rate
+        m: momentum's value before the execution of the Adam descent
+        v: velocity's value before the execution of the Adam descent
+        features: np.matrix containig the n_sample-long vector of states
+        labels: np.array of the labels related to features
+        iteration: np.integer value corresponding to the current training iteration
+        beta_1: np.float value of the Adam's beta_1 parameter; default 0.85
+        beta_2: np.float value of the Adam's beta_2 parameter; default 0.99
+        epsilon: np.float value of the Adam's epsilon parameter; default 1e-8
+    Returns: np.float new values of momentum and velocity
+    """
+
+    grads, loss = self.evaluate_loss_gradients(data, labels)
+
+    for i in range(self.nparams):
+        m[i] = beta_1 * m[i] + (1 - beta_1) * grads[i]
+        v[i] = beta_2 * v[i] + (1 - beta_2) * grads[i] * grads[i]
+        mhat = m[i] / (1.0 - beta_1 ** (iteration + 1))
+        vhat = v[i] / (1.0 - beta_2 ** (iteration + 1))
+        self.params[i] -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
+
+    return m, v, loss
+
+  
+  # ---------------------- Gradient Descent ------------------------------------
+
+  def gradient_descent(self, 
+    learning_rate, 
+    epochs, 
+    batches = 1,
+    restart_from_epoch=None, 
+    method='Adam',
+    J_treshold = 1e-5):
+
+    """
+    This function performs a full gradient descent strategy.
+    
+    Args:
+      learning_rate (float): learning rate.
+      epochs (int): number of optimization epochs.
+      batches (int): number of batches in which you want to split the training set.
+      (default 1)
+      restart_from_epoch (int): epoch from which you want to restart a previous 
+      training (default None)
+      method (str): gradient descent method you want to perform. Only "Standard"
+      and "Adam" are available (default "Adam").
+      J_treshold (float): target value for the loss function.
+    """ 
+     
+    if(method != 'Adam' and method != 'Standard'):
+      raise ValueError(
+        print('This method does not exist. Please select one of the following: Adam, Standard.')
+      )
 
     # resuming old training
     if restart_from_epoch is not None:
@@ -197,21 +278,73 @@ class vqregressor:
     
     else:
       restart_from_epoch = 0
-    
-    # we want to keep track of the loss function
-    loss_history = []
 
-    # the gradient descent strategy
-    for epoch in range(restart_from_epoch, epochs + restart_from_epoch):
-      dloss, loss = self.evaluate_loss_gradients()
-      loss_history.append(loss)
-      self.params -= learning_rate * dloss
-      # print loss value
-      print(f'Loss at epoch: {epoch + 1} ', loss)
-      # save current parameters
-      np.save(f'results/params_psr/params_epoch_{epoch+1}', self.params)
+    # we track the loss history
+    loss_history = []
+    # this list will contain the permuted indices for the minibatch strategy
+    indices = []
+
+    # original indices order
+    idx = np.arange(0, self.ndata)
+
+    # create index blocks on which we run
+    for ib in range(batches):
+      indices.append(np.arange(ib, self.ndata, batches))
+
+    # counting total number of iterations
+    iteration = 0
+
+    # useful if we use adam optimization
+    if(method == 'Adam'):
+      m = np.zeros(self.nparams)
+      v = np.zeros(self.nparams)
+
+    # cycle over the epochs
+    for epoch in range(epochs):
+      # stop the training if the target loss is reached
+      if(epoch != 0 and loss_history[-1] < J_treshold):
+        print(
+          "Desired sensibility is reached, here we stop: ",
+          iteration,
+          " iteration"
+        )
+        break
+
+      # shuffle index list
+      np.random.shuffle(idx)
+      # run over the batches
+
+      for ib in range(batches):
+        # update iteration tracker
+        iteration += 1
+
+        # create batches
+        data = self.data[idx[indices[ib]]]
+        labels = self.labels[idx[indices[ib]]]
+
+        # update parameters using the chosen method
+        if(method=='Adam'):
+          m, v, loss = self.apply_adam(
+              learning_rate, m, v, data, labels, iteration
+          )
+        elif(method=='Standard'):
+          dloss, loss = self.evaluate_loss_gradients()
+          self.params -= learning_rate * dloss
+
+        loss_history.append(loss)
+
+        # track the training
+        print(
+            "Iteration ",
+            iteration,
+            " epoch ",
+            epoch + 1,
+            " | loss: ",
+            loss,
+        )
     
     return loss_history
+
 
 
 # ------------------------ LOSS FUNCTION ---------------------------------------
