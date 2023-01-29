@@ -231,22 +231,30 @@ class vqregressor:
 
     grads, loss = self.evaluate_loss_gradients(data, labels)
 
-    for i in range(self.nparams):
-        m[i] = beta_1 * m[i] + (1 - beta_1) * grads[i]
-        v[i] = beta_2 * v[i] + (1 - beta_2) * grads[i] * grads[i]
-        mhat = m[i] / (1.0 - beta_1 ** (iteration + 1))
-        vhat = v[i] / (1.0 - beta_2 ** (iteration + 1))
-        self.params[i] -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
+    m = beta_1 * m + (1 - beta_1) * grads
+    v = beta_2 * v + (1 - beta_2) * grads * grads
+    mhat = m / (1.0 - beta_1 ** (iteration + 1))
+    vhat = v / (1.0 - beta_2 ** (iteration + 1))
+    self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
 
     return m, v, loss
-
+  def data_loader(self, batchsize):
+    nbatches = int(self.ndata / batchsize) + (self.ndata % batchsize > 0)
+    ind = np.arange(self.ndata)
+    np.random.shuffle(ind)
+    data = self.data[ind]
+    labels = self.labels[ind]
+    return iter(zip(
+      np.array_split(data, batchsize),
+      np.array_split(labels, batchsize)
+    ))
   
   # ---------------------- Gradient Descent ------------------------------------
 
   def gradient_descent(self, 
     learning_rate, 
     epochs, 
-    batches = 1,
+    batchsize = 10,
     restart_from_epoch=None, 
     method='Adam',
     J_treshold = 1e-5):
@@ -281,18 +289,6 @@ class vqregressor:
 
     # we track the loss history
     loss_history = []
-    # this list will contain the permuted indices for the minibatch strategy
-    indices = []
-
-    # original indices order
-    idx = np.arange(0, self.ndata)
-
-    # create index blocks on which we run
-    for ib in range(batches):
-      indices.append(np.arange(ib, self.ndata, batches))
-
-    # counting total number of iterations
-    iteration = 0
 
     # useful if we use adam optimization
     if(method == 'Adam'):
@@ -310,17 +306,10 @@ class vqregressor:
         )
         break
 
-      # shuffle index list
-      np.random.shuffle(idx)
       # run over the batches
-
-      for ib in range(batches):
+      for data, labels in self.data_loader(batchsize):
         # update iteration tracker
         iteration += 1
-
-        # create batches
-        data = self.data[idx[indices[ib]]]
-        labels = self.labels[idx[indices[ib]]]
 
         # update parameters using the chosen method
         if(method=='Adam'):
