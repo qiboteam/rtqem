@@ -238,15 +238,22 @@ class vqregressor:
     self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
 
     return m, v, loss
+
+
   def data_loader(self, batchsize):
+    """Returns a random batch of data with their labels"""
+    # calculating number of batches if batchsize is chosen
     nbatches = int(self.ndata / batchsize) + (self.ndata % batchsize > 0)
+    # all data indices 
     ind = np.arange(self.ndata)
+    # permutating indices and so data and labels
     np.random.shuffle(ind)
     data = self.data[ind]
     labels = self.labels[ind]
+    # returning data splitted into batches
     return iter(zip(
-      np.array_split(data, batchsize),
-      np.array_split(labels, batchsize)
+      np.array_split(data, nbatches),
+      np.array_split(labels, nbatches)
     ))
   
   # ---------------------- Gradient Descent ------------------------------------
@@ -297,6 +304,9 @@ class vqregressor:
 
     # cycle over the epochs
     for epoch in range(epochs):
+      
+      iteration = 0
+      
       # stop the training if the target loss is reached
       if(epoch != 0 and loss_history[-1] < J_treshold):
         print(
