@@ -5,7 +5,7 @@ from vqregressor import vqregressor
 from qibo.noise import NoiseModel, DepolarizingError
 from qibo import gates
 
-ndata = 500
+ndata = 200
 # random data
 data = np.random.uniform(-1, 1, ndata)
 # labeling them
@@ -31,7 +31,7 @@ history = VQR.gradient_descent(
     learning_rate=learning_rate, 
     epochs=epochs, 
     restart_from_epoch=None,
-    batchsize=50,
+    batchsize=25,
     method='Adam'
     )
 

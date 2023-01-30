@@ -51,26 +51,18 @@ class vqregressor:
     c = Circuit(nqubits, density_matrix=True)
     for q in range(nqubits):
       for l in range(layers):
+        # decomposition of RY gate
+        c.add([
+          gates.RX(q=q, theta=np.pi/2, trainable=False),
+          gates.RZ(q=q, theta=0),
+          gates.RZ(q=q, theta=np.pi, trainable=False),
+          gates.RX(q=q, theta=np.pi/2, trainable=False),
+          gates.RZ(q=q, theta=np.pi, trainable=False)
+        ])
+        # add RZ if this is not the last layer
         if(l != self.layers - 1):
-          # decomposition of RY gate
-          c.add([
-            gates.RX(q=q, theta=np.pi/2, trainable=False),
-            gates.RZ(q=q, theta=0),
-            gates.RZ(q=q, theta=np.pi, trainable=False),
-            gates.RX(q=q, theta=np.pi/2, trainable=False),
-            gates.RZ(q=q, theta=np.pi, trainable=False)
-          ])
           c.add(gates.RZ(q=q, theta=0))
-        else:
-          # if l last layer we drop the parametric RZ
-          # because it is not involved in the evaluation of E[O]
-          c.add([
-            gates.RX(q=q, theta=np.pi/2, trainable=False),
-            gates.RZ(q=q, theta=0),
-            gates.RZ(q=q, theta=np.pi, trainable=False),
-            gates.RX(q=q, theta=np.pi/2, trainable=False),
-            gates.RZ(q=q, theta=np.pi, trainable=False)
-          ])
+
     c.add(gates.M(0))
 
     return c
@@ -84,22 +76,19 @@ class vqregressor:
     
     for q in range(self.nqubits):
       for l in range(self.layers):
+        # embed x
+        params.append(self.params[index] * x + self.params[index + 1])
+        # update scale factors 
+
+        # equal to x only when x is involved
+        self.scale_factors[index] = x
+
+        # add RZ if this is not the last layer
         if(l != self.layers - 1):
-          # embed x
-          params.append(self.params[index] * x + self.params[index + 1])
           params.append(self.params[index + 2] * x + self.params[index + 3])
-          # update scale factors 
-          # equal to x only when x is involved
-          self.scale_factors[index] = x
           self.scale_factors[index + 2] = x
           # we have four parameters per layer
           index += 4
-        else:
-          # if last layer we drop the parametric RZ
-          params.append(self.params[index] * x + self.params[index + 1])
-          # update scale factors 
-          # equal to x only when x is involved
-          self.scale_factors[index] = x
 
     # update circuit's parameters
     self.circuit.set_parameters(params)
