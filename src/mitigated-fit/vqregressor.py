@@ -28,6 +28,7 @@ class vqregressor:
     self.noise_model = noise_model
     self.nshots = nshots
     self.exp_from_samples = expectation_from_samples
+
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
 
@@ -37,7 +38,7 @@ class vqregressor:
     self.circuit = self.ansatz(nqubits, layers)
 
     # get the number of parameters
-    self.nparams = nqubits * layers * 3
+    self.nparams = (nqubits * layers * 4) - 2
     # set the initial value of the variational parameters
     self.params = np.random.randn(self.nparams)
     # scaling factor for custom parameter shift rule
@@ -58,7 +59,10 @@ class vqregressor:
           gates.RX(q=q, theta=np.pi/2, trainable=False),
           gates.RZ(q=q, theta=np.pi, trainable=False)
         ])
-        c.add(gates.RZ(q=q, theta=0))
+        # add RZ if this is not the last layer
+        if(l != self.layers - 1):
+          c.add(gates.RZ(q=q, theta=0))
+
     c.add(gates.M(0))
 
     return c
@@ -72,14 +76,19 @@ class vqregressor:
     
     for q in range(self.nqubits):
       for l in range(self.layers):
-        # embed X
+        # embed x
         params.append(self.params[index] * x + self.params[index + 1])
-        params.append(self.params[index + 2])
         # update scale factors 
+
         # equal to x only when x is involved
         self.scale_factors[index] = x
-        # we have three parameters per layer
-        index += 3
+
+        # add RZ if this is not the last layer
+        if(l != self.layers - 1):
+          params.append(self.params[index + 2] * x + self.params[index + 3])
+          self.scale_factors[index + 2] = x
+          # we have four parameters per layer
+          index += 4
 
     # update circuit's parameters
     self.circuit.set_parameters(params)
@@ -409,7 +418,7 @@ class vqregressor:
 
     # we save all the images during the training in order to see the evolution
     if save:
-      plt.savefig('results/'+str(title)+'.png')
+      plt.savefig('results/' + str(title) + '.png')
       plt.close()
 
     plt.show()
