@@ -28,7 +28,7 @@ class vqregressor:
     self.noise_model = noise_model
     self.nshots = nshots
     self.exp_from_samples = expectation_from_samples
-    
+
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
 
@@ -63,6 +63,7 @@ class vqregressor:
           c.add(gates.RZ(q=q, theta=0))
         else:
           # if l last layer we drop the parametric RZ
+          # because it is not involved in the evaluation of E[O]
           c.add([
             gates.RX(q=q, theta=np.pi/2, trainable=False),
             gates.RZ(q=q, theta=0),
