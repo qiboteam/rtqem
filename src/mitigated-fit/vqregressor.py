@@ -16,7 +16,7 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
@@ -27,6 +27,7 @@ class vqregressor:
     self.backend = backend
     self.noise_model = noise_model
     self.nshots = nshots
+    self.exp_from_samples = expectation_from_samples
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
 
@@ -103,7 +104,10 @@ class vqregressor:
       circuit = self.noise_model.apply(self.circuit)
     else:
       circuit = self.circuit
-    obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])))
+    if self.exp_from_samples:
+      obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])))
+    else:
+      obs = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])).expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
     return obs
 
   def one_mitigated_prediction(self, x):
