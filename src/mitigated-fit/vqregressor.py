@@ -277,7 +277,8 @@ class vqregressor:
     batchsize = 10,
     restart_from_epoch=None, 
     method='Adam',
-    J_treshold = 1e-5):
+    J_treshold = 1e-5,
+    live_plotting=True):
 
     """
     This function performs a full gradient descent strategy.
@@ -303,7 +304,6 @@ class vqregressor:
     if restart_from_epoch is not None:
       resume_params = np.load(f"results/params_psr/params_epoch_{restart_from_epoch}.npy")
       self.set_parameters(resume_params)
-    
     else:
       restart_from_epoch = 0
 
@@ -354,6 +354,9 @@ class vqregressor:
             " | loss: ",
             loss,
         )
+
+        if live_plotting:
+          self.show_predictions(f'Live_predictions', save=True)
     
     return loss_history
 
