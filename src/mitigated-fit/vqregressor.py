@@ -2,7 +2,7 @@
 # import qibo's packages
 import qibo
 from qibo import gates
-from qibo.hamiltonians import SymbolicHamiltonian
+from qibo.hamiltonians import Hamiltonian, SymbolicHamiltonian
 from qibo.models import Circuit
 from qibo.models import error_mitigation
 from qibo.symbols import Z
@@ -16,7 +16,7 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, mitigation=None, mit_kwargs={}):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation=None, mit_kwargs={}):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
@@ -28,6 +28,7 @@ class vqregressor:
     self.noise_model = noise_model
     self.nshots = nshots
     self.exp_from_samples = expectation_from_samples
+    self.obs_hardware = obs_hardware
     self.mitigation = mitigation
     self.mit_kwargs = mit_kwargs
 
@@ -66,8 +67,6 @@ class vqregressor:
         # add RZ if this is not the last layer
         if(l != self.layers - 1):
           c.add(gates.RZ(q=q, theta=0))
-
-    c.add(gates.M(0))
 
     return c
 
@@ -115,27 +114,52 @@ class vqregressor:
     if self.mitigation is not None:
       return self.one_mitigated_prediction(x)
     self.inject_data(x)
+    circuit = self.circuit.copy()
+    if self.obs_hardware:
+      circuit.add(gates.Z(*range(self.nqubits)))
+      circuit += self.circuit.invert()
+      circuit.add(gates.M(*range(self.nqubits)))
+      observable = np.zeros((2**self.nqubits,2**self.nqubits))
+      observable[0,0] = 1
+      observable = Hamiltonian(self.nqubits, observable)
+    else:
+      circuit.add(gates.M(*range(self.nqubits)))
+      observable = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ]))
     if self.noise_model != None:
-      circuit = self.noise_model.apply(self.circuit)
-    else:
-      circuit = self.circuit
+      circuit = self.noise_model.apply(circuit)
     if self.exp_from_samples:
-      obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])))
+      obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(observable)
     else:
-      obs = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])).expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+      obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+    if self.obs_hardware:
+        obs = np.sqrt(obs)
     return obs
 
   def one_mitigated_prediction(self, x):
     """This function calculates one mitigated prediction with fixed x."""
     self.inject_data(x)
-    return self.mitigation(
+    circuit = self.circuit.copy()
+    if self.obs_hardware:
+      circuit.add(gates.Z(*range(self.nqubits)))
+      circuit += self.circuit.invert()
+      circuit.add(gates.M(*range(self.nqubits)))
+      observable = np.zeros((2**self.nqubits,2**self.nqubits))
+      observable[0,0] = 1
+      observable = Hamiltonian(self.nqubits, observable)
+    else:
+      circuit.add(gates.M(*range(self.nqubits)))
+      observable = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ]))
+    obs = self.mitigation(
       circuit=self.circuit,
-      observable=SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])),
+      observable=observable,
       noise_model=self.noise_model,
       backend=self.backend,
       nshots=self.nshots,
       **self.mit_kwargs
     )
+    if self.obs_hardware:
+      obs = np.sqrt(obs)
+    return obs
   
   def predict_sample(self):
     """This function returns all predictions."""
