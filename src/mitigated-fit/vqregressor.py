@@ -426,7 +426,7 @@ class vqregressor:
 
     # we save all the images during the training in order to see the evolution
     if save:
-      plt.savefig('results/' + str(title) + '.png')
+      plt.savefig(str(title) + '.png')
       plt.close()
 
     plt.show()

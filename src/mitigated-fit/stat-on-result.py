@@ -8,6 +8,7 @@ import argparse
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
 
 parser = argparse.ArgumentParser()
+parser.add_argument('example')
 
 parser.add_argument(
     "--best_params_path", 
