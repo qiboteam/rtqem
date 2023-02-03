@@ -10,6 +10,9 @@ parser.add_argument('example')
 
 args = parser.parse_args()
 
+if args.example[-1] == '/':
+    args.example = args.example[:-1]
+
 with open('{}/{}.conf'.format(args.example, args.example), 'r') as f:
     conf = json.load(f)
 

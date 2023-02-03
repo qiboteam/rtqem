@@ -50,9 +50,8 @@ def main(args):
     elif conf['function'] == 'gluon':
         parton = conf['parton']
         data = np.loadtxt(f'gluon/data/{parton}.dat')
-        idx = np.sort(random.sample(range(len(data)), ndata))
-        labels = data.T[1][idx]
-        data = data.T[0][idx]
+        labels = data.T[1]
+        data = data.T[0]
 
     # noise model
     if conf['noise']:
@@ -117,4 +116,6 @@ def main(args):
 
 if __name__ == "__main__":
     args = parser.parse_args()
+    if args.example[-1] == '/':
+        args.example = args.example[:-1]
     main(args)
