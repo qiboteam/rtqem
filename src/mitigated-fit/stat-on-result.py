@@ -2,7 +2,7 @@ import numpy as np
 from vqregressor import vqregressor
 import matplotlib.pyplot as plt
 import scipy.stats, json
-import argparse
+import argparse, random
 
 
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
@@ -48,7 +48,8 @@ def main(args):
     elif conf['function'] == 'gamma':
         labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
     elif conf['function'] == 'gluon':
-        data = np.loadtxt(f'data/{parton}.dat')
+        parton = conf['parton']
+        data = np.loadtxt(f'gluon/data/{parton}.dat')
         idx = random.sample(range(len(data)), ndata)
         labels = data.T[1][idx]
         data = data.T[0][idx]
