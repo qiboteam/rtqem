@@ -109,11 +109,8 @@ class vqregressor:
 
 # ------------------------------- PREDICTIONS ----------------------------------
 
-  def one_prediction(self, x):
-    """This function calculates one prediction with fixed x."""
-    if self.mitigation is not None:
-      return self.one_mitigated_prediction(x)
-    self.inject_data(x)
+  def epx_value(self):
+    """Helper function to compute the final circuit and the observable to be measured"""
     circuit = self.circuit.copy()
     if self.obs_hardware:
       circuit.add(gates.Z(*range(self.nqubits)))
@@ -125,6 +122,16 @@ class vqregressor:
     else:
       circuit.add(gates.M(*range(self.nqubits)))
       observable = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ]))
+
+    return circuit, observable
+
+
+  def one_prediction(self, x):
+    """This function calculates one prediction with fixed x."""
+    if self.mitigation is not None:
+      return self.one_mitigated_prediction(x)
+    self.inject_data(x)
+    circuit, observable = self.epx_value()
     if self.noise_model != None:
       circuit = self.noise_model.apply(circuit)
     if self.exp_from_samples:
@@ -138,17 +145,7 @@ class vqregressor:
   def one_mitigated_prediction(self, x):
     """This function calculates one mitigated prediction with fixed x."""
     self.inject_data(x)
-    circuit = self.circuit.copy()
-    if self.obs_hardware:
-      circuit.add(gates.Z(*range(self.nqubits)))
-      circuit += self.circuit.invert()
-      circuit.add(gates.M(*range(self.nqubits)))
-      observable = np.zeros((2**self.nqubits,2**self.nqubits))
-      observable[0,0] = 1
-      observable = Hamiltonian(self.nqubits, observable)
-    else:
-      circuit.add(gates.M(*range(self.nqubits)))
-      observable = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ]))
+    circuit, observable = self.epx_value()
     obs = self.mitigation(
       circuit=self.circuit,
       observable=observable,
