@@ -1,7 +1,7 @@
 import numpy as np
 from vqregressor import vqregressor
 import matplotlib.pyplot as plt
-import scipy.stats
+import scipy.stats, json
 import argparse
 
 
@@ -12,37 +12,72 @@ parser.add_argument('example')
 
 parser.add_argument(
     "--best_params_path", 
-    default="results/best_params_psr.npy", 
+    default=None, 
     help="filepath of the best params you want to use for analysing the results", 
     type=str
 )
 
 parser.add_argument(
-    "--model_info_path",
-    default="results/model_info_psr.npy", 
-    help="filepath of the file containing some model's info", 
-    type=str 
+    "--conf",
+    default=None,
+    help="filepath of the configuration to use for analysing the results", 
+    type=str
 )
-
 
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
-def main(best_params_path, model_info_path):
+def main(args):
+
+    conf_file = args.conf if args.conf is not None else f'{args.example}/{args.example}.conf'
+    with open(conf_file, 'r') as f:
+        conf = json.load(f)
 
     # load best parameters
-    best_params = np.load(best_params_path)
-    # load model info
-    model_info = np.load(model_info_path)
-
+    if args.best_params_path is not None:
+        best_params = np.load(args.best_params_path)
+    else:
+        best_params = np.load(f"{args.example}/best_params_{conf['optimizer']}.npy")
+        
     # define dataset cardinality and number of executions
     ndata = 100
     nruns = 100
 
     data = np.linspace(-1, 1, ndata)
-    labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
+    if conf['function'] == 'sinus':
+        labels = np.sin(2*data)
+    elif conf['function'] == 'gamma':
+        labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
+    elif conf['function'] == 'gluon':
+        data = np.loadtxt(f'data/{parton}.dat')
+        idx = random.sample(range(len(data)), ndata)
+        labels = data.T[1][idx]
+        data = data.T[0][idx]
 
+    # noise model
+    if conf['noise']:
+        noise = NoiseModel()
+        noise.add(DepolarizingError(lam=0.25), gates.RZ)
+    else:
+        noise = None
+
+    mit_kwargs = {
+        'ZNE': {'noise_levels':np.arange(5), 'insertion_gate':'RX'},
+        'CDR': {'n_training_samples':10},
+        'vnCDR': {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX'},
+        None: {}
+    }
+    
     # initialize vqr with data and best parameters
-    VQR = vqregressor(layers=model_info[1], data=data, labels=labels)
+    VQR = vqregressor(
+        layers=conf['nlayers'],
+        data=data,
+        labels=labels,
+        nshots=conf['nshots'],
+        expectation_from_samples=conf['expectation_from_samples'],
+        noise_model=noise,
+        mitigation=conf['mitigation'],
+        mit_kwargs=mit_kwargs[conf['mitigation']]
+    )
     VQR.set_parameters(best_params)
 
 
@@ -80,5 +115,5 @@ def main(best_params_path, model_info_path):
 # ---------------------- EXECUTE MAIN ------------------------------------------
 
 if __name__ == "__main__":
-    args = vars(parser.parse_args())
-    main(**args)
+    args = parser.parse_args()
+    main(args)

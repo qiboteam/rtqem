@@ -71,6 +71,6 @@ if conf['optimizer'] == 'Adam':
 elif conf['optimizer'] == 'CMA':
     VQR.cma_optimization()
 
-VQR.show_predictions(f'{args.example}/predictions_psr', save=True)
+VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
 
 np.save(f"{args.example}/best_params_{conf['optimizer']}", VQR.params)
