@@ -50,7 +50,7 @@ def main(args):
     elif conf['function'] == 'gluon':
         parton = conf['parton']
         data = np.loadtxt(f'gluon/data/{parton}.dat')
-        idx = random.sample(range(len(data)), ndata)
+        idx = np.sort(random.sample(range(len(data)), ndata))
         labels = data.T[1][idx]
         data = data.T[0][idx]
 
