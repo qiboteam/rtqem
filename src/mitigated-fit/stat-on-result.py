@@ -43,11 +43,13 @@ def main(args):
     nruns = 100
 
     data = np.linspace(-1, 1, ndata)
+    scaler = lambda x: x
     if conf['function'] == 'sinus':
         labels = np.sin(2*data)
     elif conf['function'] == 'gamma':
         labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
     elif conf['function'] == 'gluon':
+        scaler = lambda x: np.log(x)
         parton = conf['parton']
         data = np.loadtxt(f'gluon/data/{parton}.dat')
         labels = data.T[1]

@@ -23,12 +23,14 @@ ndata = conf['ndata']
 
 # random data
 data = np.random.uniform(-1, 1, ndata)
+scaler = lambda x: x
 # labeling them
 if conf['function'] == 'sinus':
     labels = np.sin(2*data)
 elif conf['function'] == 'gamma':
     labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
 elif conf['function'] == 'gluon':
+    scaler = lambda x: np.log(x)
     parton = conf['parton']
     data = np.loadtxt(f'gluon/data/{parton}.dat')
     idx = random.sample(range(len(data)), ndata)
@@ -57,7 +59,8 @@ VQR = vqregressor(
     expectation_from_samples=conf['expectation_from_samples'],
     noise_model=noise,
     mitigation=conf['mitigation'],
-    mit_kwargs=mit_kwargs[conf['mitigation']]
+    mit_kwargs=mit_kwargs[conf['mitigation']],
+    scaler=scaler
 )
 
 if conf['optimizer'] == 'Adam':
