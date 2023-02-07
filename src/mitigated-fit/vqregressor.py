@@ -16,7 +16,7 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, mitigation=None, mit_kwargs={}, scaler=lambda x: x):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation=None, mit_kwargs={}, scaler=lambda x: x):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
