@@ -19,13 +19,18 @@ labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
 noise = NoiseModel()
 noise.add(DepolarizingError(lam=0.25), gates.RZ)
 
-VQR = vqregressor(
-    layers=layers, 
-    data=data, 
-    labels=labels, 
-    noise_model=None
-    )
+zne = ('ZNE', {'noise_levels':np.arange(5), 'insertion_gate':'RX'})
+cdr = ('CDR', {'n_training_samples':10})
+vncdr = ('vnCDR', {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX'})
 
+VQR = vqregressor(
+    layers=1,
+    data=data,
+    labels=labels,
+    noise_model=noise,
+    mitigation=cdr[0],
+    mit_kwargs=cdr[1]
+)
 # set the training hyper-parameters
 epochs = 10
 learning_rate = 1e-2
