@@ -78,7 +78,8 @@ def main(args):
         expectation_from_samples=conf['expectation_from_samples'],
         noise_model=noise,
         mitigation=conf['mitigation'],
-        mit_kwargs=mit_kwargs[conf['mitigation']]
+        mit_kwargs=mit_kwargs[conf['mitigation']],
+        scaler=scaler
     )
     VQR.set_parameters(best_params)
 
