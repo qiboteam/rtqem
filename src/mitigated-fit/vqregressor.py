@@ -16,7 +16,7 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation=None, mit_kwargs={}):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation=None, mit_kwargs={}, scaler=lambda x: x):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
@@ -31,6 +31,7 @@ class vqregressor:
     self.obs_hardware = obs_hardware
     self.mitigation = mitigation
     self.mit_kwargs = mit_kwargs
+    self.scaler = scaler
 
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
@@ -80,11 +81,11 @@ class vqregressor:
     for q in range(self.nqubits):
       for l in range(self.layers):
         # embed x
-        params.append(self.params[index] * x + self.params[index + 1])
+        params.append(self.params[index] * self.scaler(x) + self.params[index + 1])
         # update scale factors 
 
         # equal to x only when x is involved
-        self.scale_factors[index] = x
+        self.scale_factors[index] = self.scaler(x)
 
         # add RZ if this is not the last layer
         if(l != self.layers - 1):
@@ -447,7 +448,7 @@ class vqregressor:
 
     # we save all the images during the training in order to see the evolution
     if save:
-      plt.savefig('results/' + str(title) + '.png')
+      plt.savefig(str(title) + '.png')
       plt.close()
 
     plt.show()
