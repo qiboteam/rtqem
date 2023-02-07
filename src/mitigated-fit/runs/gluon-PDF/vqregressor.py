@@ -2,9 +2,9 @@
 # import qibo's packages
 import qibo
 from qibo import gates
-from qibo.hamiltonians import Hamiltonian, SymbolicHamiltonian
+from qibo.hamiltonians import SymbolicHamiltonian
 from qibo.models import Circuit
-from qibo.models import error_mitigation
+from qibo.models.error_mitigation import CDR
 from qibo.symbols import Z
 
 # some useful python package
@@ -16,7 +16,7 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation=None, mit_kwargs={}, scaler=lambda x: x):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
@@ -28,17 +28,11 @@ class vqregressor:
     self.noise_model = noise_model
     self.nshots = nshots
     self.exp_from_samples = expectation_from_samples
-    self.obs_hardware = obs_hardware
-    self.mitigation = mitigation
-    self.mit_kwargs = mit_kwargs
-    self.scaler = scaler
 
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
 
       self.backend = GlobalBackend()
-    if mitigation is not None:
-      self.mitigation = getattr(error_mitigation, mitigation)
 
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
@@ -69,6 +63,8 @@ class vqregressor:
         if(l != self.layers - 1):
           c.add(gates.RZ(q=q, theta=0))
 
+    c.add(gates.M(0))
+
     return c
 
 # --------------------------- RE-UPLOADING -------------------------------------
@@ -81,11 +77,11 @@ class vqregressor:
     for q in range(self.nqubits):
       for l in range(self.layers):
         # embed x
-        params.append(self.params[index] * self.scaler(x) + self.params[index + 1])
+        params.append(self.params[index] * np.log(x) + self.params[index + 1])
         # update scale factors 
 
         # equal to x only when x is involved
-        self.scale_factors[index] = self.scaler(x)
+        self.scale_factors[index] = np.log(x)
 
         # add RZ if this is not the last layer
         if(l != self.layers - 1):
@@ -110,54 +106,31 @@ class vqregressor:
 
 # ------------------------------- PREDICTIONS ----------------------------------
 
-  def epx_value(self):
-    """Helper function to compute the final circuit and the observable to be measured"""
-    circuit = self.circuit.copy()
-    if self.obs_hardware:
-      circuit.add(gates.Z(*range(self.nqubits)))
-      circuit += self.circuit.invert()
-      circuit.add(gates.M(*range(self.nqubits)))
-      observable = np.zeros((2**self.nqubits,2**self.nqubits))
-      observable[0,0] = 1
-      observable = Hamiltonian(self.nqubits, observable)
-    else:
-      circuit.add(gates.M(*range(self.nqubits)))
-      observable = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ]))
-
-    return circuit, observable
-
-
   def one_prediction(self, x):
     """This function calculates one prediction with fixed x."""
-    if self.mitigation is not None:
-      return self.one_mitigated_prediction(x)
     self.inject_data(x)
-    circuit, observable = self.epx_value()
     if self.noise_model != None:
-      circuit = self.noise_model.apply(circuit)
-    if self.exp_from_samples:
-      obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(observable)
+      circuit = self.noise_model.apply(self.circuit)
     else:
-      obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
-    if self.obs_hardware:
-        obs = np.sqrt(obs)
+      circuit = self.circuit
+    if self.exp_from_samples:
+      obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])))
+    else:
+      obs = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])).expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
     return obs
 
   def one_mitigated_prediction(self, x):
     """This function calculates one mitigated prediction with fixed x."""
     self.inject_data(x)
-    circuit, observable = self.epx_value()
-    obs = self.mitigation(
+    return CDR(
       circuit=self.circuit,
-      observable=observable,
+      observable=SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ])),
       noise_model=self.noise_model,
       backend=self.backend,
       nshots=self.nshots,
-      **self.mit_kwargs
+      full_output=False,
+      n_training_samples=10,
     )
-    if self.obs_hardware:
-      obs = np.sqrt(obs)
-    return obs
   
   def predict_sample(self):
     """This function returns all predictions."""
@@ -441,6 +414,7 @@ class vqregressor:
     plt.title(title)
     plt.xlabel('x')
     plt.ylabel('y')
+    plt.xscale('log')
     plt.scatter(self.data, self.labels, color='orange', alpha=0.6, label='Original', s=70, marker='o')
     plt.scatter(self.data, predictions, color='purple', alpha=0.6, label='Predictions', s=70, marker='o')
 
@@ -448,7 +422,7 @@ class vqregressor:
 
     # we save all the images during the training in order to see the evolution
     if save:
-      plt.savefig(str(title) + '.png')
+      plt.savefig('results/' + str(title) + '.png')
       plt.close()
 
     plt.show()
