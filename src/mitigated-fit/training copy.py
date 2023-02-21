@@ -80,5 +80,12 @@ elif conf['optimizer'] == 'CMA':
     VQR.cma_optimization()
 
 
-VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
-np.save(f"{args.example}/best_params_{conf['optimizer']}", VQR.params)
+best_params = np.load(f"{args.example}/best_params_{conf['optimizer']}_mit_step01.npy")
+VQR.set_parameters(best_params)
+
+#VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}_step_nomit_final_nomit_hardw", save=True)
+VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}_mit_step01", save=True)
+#np.save(f"{args.example}/best_params_{conf['optimizer']}_step_nomit_hardw", VQR.params)
+
+
+#np.save(f"{args.example}/best_params_{conf['optimizer']}_mit_end01", VQR.params)

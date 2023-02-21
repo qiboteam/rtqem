@@ -3,7 +3,8 @@ from vqregressor import vqregressor
 import matplotlib.pyplot as plt
 import scipy.stats, json
 import argparse, random
-
+from qibo.noise import NoiseModel, DepolarizingError
+from qibo import gates
 
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
 
@@ -39,7 +40,7 @@ def main(args):
         best_params = np.load(f"{args.example}/best_params_{conf['optimizer']}.npy")
         
     # define dataset cardinality and number of executions
-    ndata = 100
+    ndata = 99
     nruns = 100
 
     data = np.linspace(-1, 1, ndata)
@@ -58,7 +59,7 @@ def main(args):
     # noise model
     if conf['noise']:
         noise = NoiseModel()
-        noise.add(DepolarizingError(lam=0.25), gates.RZ)
+        noise.add(DepolarizingError(lam=0.1), gates.RX)
     else:
         noise = None
 
@@ -78,7 +79,7 @@ def main(args):
         expectation_from_samples=conf['expectation_from_samples'],
         noise_model=noise,
         mitigation=conf['mitigation'],
-        mit_kwargs=mit_kwargs[conf['mitigation']],
+        mit_kwargs=mit_kwargs[conf['mitigation']['method']],
         scaler=scaler
     )
     VQR.set_parameters(best_params)
@@ -100,7 +101,6 @@ def main(args):
 
     means = np.asarray(means)
     stds = np.asarray(stds)
-
 
     # plot results
     plt.figure(figsize=(8,6))
