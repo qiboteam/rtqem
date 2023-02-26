@@ -16,7 +16,7 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation=None, mit_kwargs={}, scaler=lambda x: x):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation={'step':False,'final':False,'method':None}, mit_kwargs={}, scaler=lambda x: x):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
@@ -37,8 +37,8 @@ class vqregressor:
       from qibo.backends import GlobalBackend
 
       self.backend = GlobalBackend()
-    if mitigation is not None:
-      self.mitigation = getattr(error_mitigation, mitigation)
+    if mitigation['method'] is not None:
+      self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
 
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
@@ -112,7 +112,7 @@ class vqregressor:
 
   def epx_value(self):
     """Helper function to compute the final circuit and the observable to be measured"""
-    circuit = self.circuit.copy()
+    circuit = self.circuit.copy(deep = True)
     if self.obs_hardware:
       circuit.add(gates.Z(*range(self.nqubits)))
       circuit += self.circuit.invert()
@@ -129,8 +129,6 @@ class vqregressor:
 
   def one_prediction(self, x):
     """This function calculates one prediction with fixed x."""
-    if self.mitigation is not None:
-      return self.one_mitigated_prediction(x)
     self.inject_data(x)
     circuit, observable = self.epx_value()
     if self.noise_model != None:
@@ -140,15 +138,16 @@ class vqregressor:
     else:
       obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
     if self.obs_hardware:
-        obs = np.sqrt(obs)
+        obs = np.sqrt(abs(obs))
     return obs
+
 
   def one_mitigated_prediction(self, x):
     """This function calculates one mitigated prediction with fixed x."""
     self.inject_data(x)
     circuit, observable = self.epx_value()
-    obs = self.mitigation(
-      circuit=self.circuit,
+    obs = self.mitigation['method'](
+      circuit=circuit,
       observable=observable,
       noise_model=self.noise_model,
       backend=self.backend,
@@ -156,14 +155,27 @@ class vqregressor:
       **self.mit_kwargs
     )
     if self.obs_hardware:
-      obs = np.sqrt(obs)
+      obs = np.sqrt(abs(obs))
     return obs
+
+
+  def step_prediction(self, x):
+    if self.mitigation['step']:
+      prediction = self.one_mitigated_prediction
+    else:
+      prediction = self.one_prediction
+    return prediction(x)
   
+
   def predict_sample(self):
     """This function returns all predictions."""
+    if self.mitigation['final']:
+      prediction = self.one_mitigated_prediction
+    else:
+      prediction = self.one_prediction
     predictions = []
     for x in self.data:
-      predictions.append(self.one_prediction(x))
+      predictions.append(prediction(x))
 
     return predictions
 
@@ -179,11 +191,11 @@ class vqregressor:
 
     shifted[parameter_index] += (np.pi / 2) / self.scale_factors[parameter_index]
     self.set_parameters(shifted)
-    forward = self.one_prediction(x)
+    forward = self.step_prediction(x)
 
     shifted[parameter_index] -= np.pi / self.scale_factors[parameter_index]
     self.set_parameters(shifted)
-    backward = self.one_prediction(x)
+    backward = self.step_prediction(x)
 
     self.params = original
 
@@ -227,7 +239,7 @@ class vqregressor:
     # cycle on all the sample
     for x, y in zip(data, labels):
       # calculate prediction
-      prediction = self.one_prediction(x)
+      prediction = self.step_prediction(x)
       # derivative of E[O] with respect all thetas
       dcirc = self.circuit_derivative(x)
       # calculate loss and dloss
@@ -403,7 +415,7 @@ class vqregressor:
     self.set_parameters(params)
 
     for x, label in zip(self.data, self.labels):
-      prediction = self.one_prediction(x)
+      prediction = self.step_prediction(x)
       loss += (prediction -  label)**2
     
     return loss/self.ndata
