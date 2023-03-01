@@ -46,15 +46,16 @@ class vqregressor:
     self.circuit = self.ansatz(nqubits, layers)
 
     # set the number of parameters
-    if obs_hardware:
-      real_nparams = (nqubits * layers * 4) - 2
-      self.nparams = 2 * real_nparams
-      parameters_set = np.random.randn(real_nparams)
+    self.real_nparams = (nqubits * layers * 4) - 2
+
+    if obs_hardware:  
+      self.nparams = 2 * self.real_nparams
+      parameters_set = np.random.randn(self.real_nparams)
       # original params concatenated with the reverse array
       # because circ will be e.g.: gate1-gate2-OBS-gate2-gate1
       self.params = np.concatenate((parameters_set, parameters_set[::-1]))
     else:
-      self.nparams = (nqubits * layers * 4) - 2
+      self.nparams = self.real_nparams
       self.params = np.random.randn(self.nparams)
 
     # set the initial value of the variational parameters
@@ -105,16 +106,24 @@ class vqregressor:
         # embed x
         params.append(self.params[index] * self.scaler(x) + self.params[index + 1])
         # update scale factors 
-
         # equal to x only when x is involved
         self.scale_factors[index] = self.scaler(x)
+        # updating also for the inverse circuit
+        if self.obs_hardware:
+          self.scale_factors[self.nparams - index - 1] = self.scaler(x)
 
         # add RZ if this is not the last layer
         if(l != self.layers - 1):
           params.append(self.params[index + 2] * x + self.params[index + 3])
-          self.scale_factors[index + 2] = x
+          # updating also for the inverse circuit
+          if self.obs_hardware:
+            self.scale_factors[index + 2] = x
           # we have four parameters per layer
           index += 4
+      
+      # filling also params of the inverse circuit
+      if self.obs_hardware:
+        params = np.concatenate((params, params[::-1]))
 
     # update circuit's parameters
     self.circuit.set_parameters(params)
@@ -132,33 +141,16 @@ class vqregressor:
 
 # ------------------------------- PREDICTIONS ----------------------------------
 
-  def epx_value(self):
-    """Helper function to compute the final circuit and the observable to be measured"""
-    circuit = self.circuit.copy(deep = True)
-    if self.obs_hardware:
-      circuit.add(gates.Z(*range(self.nqubits)))
-      circuit += self.circuit.invert()
-      circuit.add(gates.M(*range(self.nqubits)))
-      observable = np.zeros((2**self.nqubits,2**self.nqubits))
-      observable[0,0] = 1
-      observable = Hamiltonian(self.nqubits, observable)
-    else:
-      circuit.add(gates.M(*range(self.nqubits)))
-      observable = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ]))
-
-    return circuit, observable
-
 
   def one_prediction(self, x):
     """This function calculates one prediction with fixed x."""
     self.inject_data(x)
-    circuit, observable = self.epx_value()
     if self.noise_model != None:
-      circuit = self.noise_model.apply(circuit)
+      circuit = self.noise_model.apply(self.circuit)
     if self.exp_from_samples:
-      obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(observable)
+      obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(self.observable)
     else:
-      obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+      obs = self.observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
     if self.obs_hardware:
         obs = np.sqrt(abs(obs))
     return obs
@@ -167,10 +159,9 @@ class vqregressor:
   def one_mitigated_prediction(self, x):
     """This function calculates one mitigated prediction with fixed x."""
     self.inject_data(x)
-    circuit, observable = self.epx_value()
     obs = self.mitigation['method'](
-      circuit=circuit,
-      observable=observable,
+      circuit=self.circuit,
+      observable=self.observable,
       noise_model=self.noise_model,
       backend=self.backend,
       nshots=self.nshots,
@@ -229,13 +220,16 @@ class vqregressor:
   def circuit_derivative(self, x):
     """Derivatives of the expected value of the target observable with respect 
     to the variational parameters of the circuit are performed via parameter-shift
-    rule (PSR)."""
-    dcirc = np.zeros(self.nparams)   
+    rule (PSR).
+    It returns a real_nparams long vector of derivatives."""
+    dcirc = np.zeros(self.real_nparams)   
     
-    for par in range(self.nparams):
-      # read qibo documentation for more information about this PSR implementation
+    for par in range(self.real_nparams):
       dcirc[par] = self.parameter_shift(par, x)
-    
+      # adding contribution from the second parameter
+      if self.obs_hardware:
+        dcirc[par] += self.parameter_shift(self.nparams-par-1, x)
+
     return dcirc
 
   
@@ -254,7 +248,7 @@ class vqregressor:
 
     # we need the derivative of the loss
     # nparams-long vector
-    dloss = np.zeros(self.nparams)
+    dloss = np.zeros(self.real_nparams)
     # we also keep track of the loss value
     loss = 0
 
@@ -268,6 +262,9 @@ class vqregressor:
       mse = (prediction - y)
       loss += mse**2
       dloss += 2 * mse * dcirc
+
+    if self.obs_hardware:
+      dloss = np.concatenate((dloss, dloss[::-1]))
 
     return dloss, loss/len(data)
 
