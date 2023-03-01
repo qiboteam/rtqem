@@ -32,6 +32,8 @@ class vqregressor:
     self.mitigation = mitigation
     self.mit_kwargs = mit_kwargs
     self.scaler = scaler
+    # default observable. It will be modified if obs_hardware == True
+    self.observable = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ]))
 
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
@@ -43,10 +45,19 @@ class vqregressor:
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
 
-    # get the number of parameters
-    self.nparams = (nqubits * layers * 4) - 2
+    # set the number of parameters
+    if obs_hardware:
+      real_nparams = (nqubits * layers * 4) - 2
+      self.nparams = 2 * real_nparams
+      parameters_set = np.random.randn(real_nparams)
+      # original params concatenated with the reverse array
+      # because circ will be e.g.: gate1-gate2-OBS-gate2-gate1
+      self.params = np.concatenate((parameters_set, parameters_set[::-1]))
+    else:
+      self.nparams = (nqubits * layers * 4) - 2
+      self.params = np.random.randn(self.nparams)
+
     # set the initial value of the variational parameters
-    self.params = np.random.randn(self.nparams)
     # scaling factor for custom parameter shift rule
     self.scale_factors = np.ones(self.nparams)
 
@@ -68,6 +79,17 @@ class vqregressor:
         # add RZ if this is not the last layer
         if(l != self.layers - 1):
           c.add(gates.RZ(q=q, theta=0))
+      
+      if self.obs_hardware:
+        c.add(gates.Z(*range(self.nqubits)))
+        c += self.circuit.invert()
+        c.add(gates.M(*range(self.nqubits)))
+        observable = np.zeros((2**self.nqubits,2**self.nqubits))
+        observable[0,0] = 1
+        self.observable = Hamiltonian(self.nqubits, observable)
+      else:
+        # we only add measurements because observable is already in the right form
+        c.add(gates.M(*range(self.nqubits)))
 
     return c
 
