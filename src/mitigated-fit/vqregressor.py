@@ -212,7 +212,7 @@ class vqregressor:
     shifted[parameter_index] += (np.pi / 2) / self.scale_factors[parameter_index]
     self.set_parameters(shifted)
     forward = np.array(self.step_prediction(x, nshots))
-    shifted[parameter_index] -= (np.pi / 2) / self.scale_factors[parameter_index]
+    shifted[parameter_index] -= np.pi / self.scale_factors[parameter_index]
     self.set_parameters(shifted)
     backward = np.array(self.step_prediction(x, nshots))
     self.params = original
