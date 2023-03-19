@@ -55,6 +55,7 @@ VQR = vqregressor(
     layers=layers,
     data=data,
     labels=labels,
+    min_shots=100,
     nshots=conf['nshots'],
     expectation_from_samples=conf['expectation_from_samples'],
     obs_hardware =conf['obs_hardware'], 
@@ -64,17 +65,21 @@ VQR = vqregressor(
     scaler=scaler
 )
 
-if conf['optimizer'] == 'Adam':
+if conf['optimizer'] == 'Adam' or conf['optimizer'] == 'Rosalin':
     # set the training hyper-parameters
     epochs = conf['epochs']
     learning_rate = conf['learning_rate']
+    b = conf['b']
+    mu = conf['mu']
     # perform the training
     history = VQR.gradient_descent(
         learning_rate=learning_rate, 
+        b=b,
+        mu=mu,
         epochs=epochs, 
         restart_from_epoch=conf['restart_from_epoch'],
         batchsize=conf['batchsize'],
-        method='Adam'
+        method=conf['optimizer']
     )
 elif conf['optimizer'] == 'CMA':
     VQR.cma_optimization()
