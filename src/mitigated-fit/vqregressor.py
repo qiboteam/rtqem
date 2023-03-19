@@ -150,8 +150,6 @@ class vqregressor:
     if self.exp_from_samples:
       result = self.backend.execute_circuit(circuit, nshots=nshots)
       obs, var = self.expectation_from_samples(observable, result)
-      # obs = self.backend.execute_circuit(circuit, nshots=nshots).expectation_from_samples(observable)
-      # var = 1 - obs**2 #(in this case)
     else:
       obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
       var = 0
@@ -209,17 +207,17 @@ class vqregressor:
 
     original = self.params.copy()
     shifted = self.params.copy()
-    nshots = int(self.nshots_param[parameter_index]/self.ndata)
+    #nshots = int(self.nshots_param[parameter_index]/self.ndata)
+    nshots = int(np.sum(self.nshots_param))
     shifted[parameter_index] += (np.pi / 2) / self.scale_factors[parameter_index]
     self.set_parameters(shifted)
     forward = np.array(self.step_prediction(x, nshots))
-    shifted[parameter_index] -= np.pi / self.scale_factors[parameter_index]
+    shifted[parameter_index] -= (np.pi / 2) / self.scale_factors[parameter_index]
     self.set_parameters(shifted)
     backward = np.array(self.step_prediction(x, nshots))
-
     self.params = original
     result = 0.5 * (forward[0] - backward[0]) * self.scale_factors[parameter_index]
-    var = 0.25 * (forward[1] - backward[1]) * self.scale_factors[parameter_index]
+    var = 0.25 * (forward[1] + backward[1]) * self.scale_factors[parameter_index]**2
     return result, var
 
 # ------------------------- Derivative of <O> ----------------------------------
@@ -233,7 +231,6 @@ class vqregressor:
     for par in range(self.nparams):
       # read qibo documentation for more information about this PSR implementation
       dcirc[par, :] = self.parameter_shift(par, x) #0 -> grad, 1-> variance
-    
     return dcirc
 
   
@@ -259,7 +256,9 @@ class vqregressor:
     # cycle on all the sample
     for x, y in zip(data, labels):
       # calculate prediction
-      prediction = np.array(self.step_prediction(x, self.nshots))
+      #shots = int(np.sum(self.nshots_param)/self.ndata)
+      shots = int(np.sum(self.nshots_param))
+      prediction = np.array(self.step_prediction(x, shots))
       # derivative of E[O] with respect all thetas
       dcirc = self.circuit_derivative(x)
       # calculate loss and dloss
@@ -325,6 +324,7 @@ class vqregressor:
   
   def apply_rosalin(
       self,
+      mode,
       learning_rate,
       b,
       mu,
@@ -337,25 +337,39 @@ class vqregressor:
     
     lipschitz = np.sum(abs(labels)) + self.ndata
     grads, loss = self.evaluate_loss_gradients(data, labels)
-    self.params -= learning_rate*grads[:,0]
+
 
     xi1 = mu * xi1 + (1 - mu) * grads[:,1]
     xi2 = xi1 / (1 - mu ** (iteration+1))
     chi1 = mu * chi1 + (1 - mu) * grads[:,0]
     chi2 = chi1 / (1 - mu ** (iteration+1))
+    if mode == 'iCNAS2':
+      lr = grads[:,0]**2/(lipschitz*(grads[:,0]**2+grads[:,1]/np.array(self.nshots_param)+b*mu**iteration))
+      learning_rate_list = []
+      for j in range(len(self.params)):
+        if learning_rate > lr[j]:
+          learning_rate_list.append(lr[j])
+        else:
+          learning_rate_list.append(learning_rate)
+    elif mode == 'iCNAS1':
+        learning_rate_list = [learning_rate]*self.nparams
+
+    learning_rate_list = np.array(learning_rate_list)
+    self.params -= learning_rate_list*grads[:,0]
+  
     s = np.ceil(
         (2 * lipschitz * learning_rate * xi2)
         / ((2 - lipschitz * learning_rate) * (chi2 ** 2 + b * (mu ** (iteration))))
     )
-    
-    
     gamma = (
         (learning_rate - lipschitz * learning_rate ** 2 / 2) * chi2 ** 2
         - xi2 * lipschitz * learning_rate ** 2 / (2 * s)
     ) / s
-    argmax_gamma = np.unravel_index(np.argmax(gamma), gamma.shape)
+    argmax_gamma = np.argmax(gamma)
     smax = s[argmax_gamma]
+
     self.nshots_param = np.clip(s, min(2, self.min_shots), smax)
+
     return chi1, xi1, loss
     
     
@@ -388,6 +402,7 @@ class vqregressor:
     batchsize = 10,
     restart_from_epoch=None, 
     method='Adam',
+    mode='iCNAS2',
     J_treshold = 1e-5,
     live_plotting=True):
 
@@ -461,7 +476,7 @@ class vqregressor:
           self.params -= learning_rate * dloss[:, 0]
         elif(method=='Rosalin'):
           chi1, xi1, loss = self.apply_rosalin(
-            learning_rate, b, mu, chi1, xi1, data, labels, iteration)
+            mode, learning_rate, b, mu, chi1, xi1, data, labels, iteration)
 
         loss_history.append(loss)
         shots_history.append(shots)
