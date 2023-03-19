@@ -16,7 +16,7 @@ qibo.set_backend('numpy')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation={'step':False,'final':False,'method':None}, mit_kwargs={}, scaler=lambda x: x):
+  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, min_shots=100, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation={'step':False,'final':False,'method':None}, mit_kwargs={}, scaler=lambda x: x):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
@@ -27,12 +27,12 @@ class vqregressor:
     self.backend = backend
     self.noise_model = noise_model
     self.nshots = nshots
+    self.min_shots = min_shots
     self.exp_from_samples = expectation_from_samples
     self.obs_hardware = obs_hardware
     self.mitigation = mitigation
     self.mit_kwargs = mit_kwargs
     self.scaler = scaler
-
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
 
@@ -45,6 +45,8 @@ class vqregressor:
 
     # get the number of parameters
     self.nparams = (nqubits * layers * 4) - 2
+    self.nshots_param = np.zeros(self.nparams) + min_shots
+    self.nshots_loss = int(min_shots)
     # set the initial value of the variational parameters
     self.params = np.random.randn(self.nparams)
     # scaling factor for custom parameter shift rule
@@ -125,24 +127,41 @@ class vqregressor:
       observable = SymbolicHamiltonian(np.prod([ Z(i) for i in range(self.nqubits) ]))
 
     return circuit, observable
-
-
-  def one_prediction(self, x):
+  
+  
+  def expectation_from_samples(self, obs, result):
+    from collections import Counter
+    samples = result.samples()
+    exp = []
+    for j in samples:
+        freq = Counter()
+        freq[str(j[0])] = 1
+        exp.append(obs.expectation_from_samples(freq))
+    var = np.var(exp)
+    exp = np.mean(exp)
+    return exp, var # In our case obs = Z, so Var(Z) = <Z^2> - <Z>^2 = 1 - <Z>^2 = 1 - exp^2. If obs_hardware==True, obs=Projector, so Var(obs) = <obs> - <obs>^2
+  
+  
+  def one_prediction(self, x, nshots):
+    #print(nshots)
     """This function calculates one prediction with fixed x."""
     self.inject_data(x)
     circuit, observable = self.epx_value()
     if self.noise_model != None:
       circuit = self.noise_model.apply(circuit)
     if self.exp_from_samples:
-      obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(observable)
+      result = self.backend.execute_circuit(circuit, nshots=nshots)
+      obs, var = self.expectation_from_samples(observable, result)
     else:
       obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+      var = 0
     if self.obs_hardware:
         obs = np.sqrt(abs(obs))
-    return obs
+        # variance does not change
+    return [obs, var]
 
 
-  def one_mitigated_prediction(self, x):
+  def one_mitigated_prediction(self, x, nshots):
     """This function calculates one mitigated prediction with fixed x."""
     self.inject_data(x)
     circuit, observable = self.epx_value()
@@ -151,20 +170,22 @@ class vqregressor:
       observable=observable,
       noise_model=self.noise_model,
       backend=self.backend,
-      nshots=self.nshots,
+      nshots=nshots,
       **self.mit_kwargs
     )
+    var = 1 - obs**2
     if self.obs_hardware:
       obs = np.sqrt(abs(obs))
-    return obs
+      # variance does not change)
+    return [obs, var]
 
 
-  def step_prediction(self, x):
+  def step_prediction(self, x, nshots):
     if self.mitigation['step']:
       prediction = self.one_mitigated_prediction
     else:
       prediction = self.one_prediction
-    return prediction(x)
+    return prediction(x, nshots)
   
 
   def predict_sample(self):
@@ -175,7 +196,7 @@ class vqregressor:
       prediction = self.one_prediction
     predictions = []
     for x in self.data:
-      predictions.append(prediction(x))
+      predictions.append(prediction(x, self.nshots))
 
     return predictions
 
@@ -188,19 +209,18 @@ class vqregressor:
 
     original = self.params.copy()
     shifted = self.params.copy()
-
+    #nshots = int(self.nshots_param[parameter_index]/self.ndata)
+    nshots = int(np.sum(self.nshots_param)/self.ndata)
     shifted[parameter_index] += (np.pi / 2) / self.scale_factors[parameter_index]
     self.set_parameters(shifted)
-    forward = self.step_prediction(x)
-
+    forward = np.array(self.step_prediction(x, nshots))
     shifted[parameter_index] -= np.pi / self.scale_factors[parameter_index]
     self.set_parameters(shifted)
-    backward = self.step_prediction(x)
-
+    backward = np.array(self.step_prediction(x, nshots))
     self.params = original
-
-    result = 0.5 * (forward - backward) * self.scale_factors[parameter_index]
-    return result
+    result = 0.5 * (forward[0] - backward[0]) * self.scale_factors[parameter_index]
+    var = 0.25 * (forward[1] + backward[1]) * self.scale_factors[parameter_index]**2
+    return result, var
 
 # ------------------------- Derivative of <O> ----------------------------------
 
@@ -208,12 +228,11 @@ class vqregressor:
     """Derivatives of the expected value of the target observable with respect 
     to the variational parameters of the circuit are performed via parameter-shift
     rule (PSR)."""
-    dcirc = np.zeros(self.nparams)   
+    dcirc = np.zeros((self.nparams, 2))   
     
     for par in range(self.nparams):
       # read qibo documentation for more information about this PSR implementation
-      dcirc[par] = self.parameter_shift(par, x)
-    
+      dcirc[par, :] = self.parameter_shift(par, x) #0 -> grad, 1-> variance
     return dcirc
 
   
@@ -232,22 +251,36 @@ class vqregressor:
 
     # we need the derivative of the loss
     # nparams-long vector
-    dloss = np.zeros(self.nparams)
+    dloss = np.zeros((self.nparams, 2))
     # we also keep track of the loss value
-    loss = 0
-
+    loss = np.zeros(2)
     # cycle on all the sample
     for x, y in zip(data, labels):
       # calculate prediction
-      prediction = self.step_prediction(x)
+      #shots = int(np.sum(self.nshots_param)/self.ndata)
+      shots = self.nshots_loss#int(np.sum(self.nshots_param))
+      prediction = np.array(self.step_prediction(x, shots))
       # derivative of E[O] with respect all thetas
       dcirc = self.circuit_derivative(x)
       # calculate loss and dloss
-      mse = (prediction - y)
-      loss += mse**2
-      dloss += 2 * mse * dcirc
-
-    return dloss, loss/len(data)
+      mse = (prediction[0] - y)
+      if mse < 0:
+        sign = -1
+      else:
+        sign = 1
+      loss[0] += mse*sign
+      loss[1] += prediction[1]
+      #loss[0] += mse**2
+      #loss[1] += 1-prediction[1]**2+4*y**2*prediction[1]#prediction[1]**2
+      dloss[:, 0] += sign * dcirc[:, 0]
+      dloss[:, 1] += dcirc[:, 1] #variance
+      #dloss[:, 0] += 2* mse * dcirc[:, 0]
+      #dloss[:, 1] += 4*mse**2 * dcirc[:, 1] #variance
+      
+    loss[0] /= len(data)
+    dloss[:, 0] /= len(data)
+    dloss[:, 1] /= len(data)**2
+    return dloss, loss
 
     
 # ---------------------- Update parameters if we use Adam ----------------------
@@ -282,6 +315,7 @@ class vqregressor:
     """
 
     grads, loss = self.evaluate_loss_gradients(data, labels)
+    grads = grads[:,0]
 
     m = beta_1 * m + (1 - beta_1) * grads
     v = beta_2 * v + (1 - beta_2) * grads * grads
@@ -290,6 +324,102 @@ class vqregressor:
     self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
 
     return m, v, loss
+  
+  def apply_rosalin(
+      self,
+      mode,
+      learning_rate,
+      b,
+      mu,
+      chi1,
+      xi1,
+      data,
+      labels,
+      iteration,
+      ):
+    
+    lipschitz = np.sum(abs(labels)) + self.ndata
+    grads, loss = self.evaluate_loss_gradients(data, labels)
+
+
+    xi1 = mu * xi1 + (1 - mu) * grads[:,1]
+    xi2 = xi1 / (1 - mu ** (iteration+1))
+    chi1 = mu * chi1 + (1 - mu) * grads[:,0]
+    chi2 = chi1 / (1 - mu ** (iteration+1))
+    if mode == 'iCNAS2':
+      lr = grads[:,0]**2/(lipschitz*(grads[:,0]**2+grads[:,1]/np.array(self.nshots_param)+b*mu**iteration))
+      learning_rate_list = []
+      for j in range(len(self.params)):
+        if learning_rate > lr[j]:
+          learning_rate_list.append(lr[j])
+        else:
+          learning_rate_list.append(learning_rate)
+    elif mode == 'iCNAS1':
+        learning_rate_list = [learning_rate]*self.nparams
+
+    learning_rate_list = np.array(learning_rate_list)
+    self.params -= learning_rate_list*grads[:,0]
+  
+    s = np.ceil(
+        (2 * lipschitz * learning_rate * xi2)
+        / ((2 - lipschitz * learning_rate) * (chi2 ** 2 + b * (mu ** (iteration))))
+    )
+    gamma = (
+        (learning_rate - lipschitz * learning_rate ** 2 / 2) * chi2 ** 2
+        - xi2 * lipschitz * learning_rate ** 2 / (2 * s)
+    ) / s
+    argmax_gamma = np.argmax(gamma)
+    smax = s[argmax_gamma]
+
+    self.nshots_param = np.clip(s, min(2, self.min_shots), smax)
+    for i, k in enumerate(self.nshots_param):
+      if k < 2*self.ndata:
+        self.nshots_param[i] = 2*self.ndata
+    print(self.nshots_param)
+    self.nshots_loss = 10000 #int(np.sum(self.nshots_param))
+
+    return chi1, xi1, loss
+    
+  def apply_shoals(
+      self,
+      learning_rate_max,
+      learning_rate,
+      shots_grad,
+      shots_loss,
+      p, # in 0, (1/2)^len(data)
+      gamma,
+      c,
+      eps_f,
+      data,
+      labels,
+      iteration,
+      ):   
+
+      lipschitz = np.sum(abs(labels)) + self.ndata
+      self.nshots_param = shots_grad
+      grads, _ = self.evaluate_loss_gradients(data, labels)
+      s = self.params -learning_rate*grads[:,0]
+      self.nshots_loss = int(shots_loss[0])
+      grads_0, loss_0 = self.evaluate_loss_gradients(data, labels)
+      self.params = s
+      self.nshots_loss = int(shots_loss[1])
+      grads_s, loss_s = self.evaluate_loss_gradients(data, labels)
+      shots_grad = np.zeros((len(grads[:,0])))
+      shots_loss = np.zeros(2)
+      for j in range(len(grads[:,0])):
+        shots_grad[j] = np.ceil(grads[j,1]/(p*max(lipschitz*learning_rate*grads[j,0],eps_f)**2))
+      shots_loss[0] = min(np.ceil(loss_0[1]/(p*(learning_rate**2*np.linalg.norm(grads_0[:,0]))**2)),np.ceil(loss_0[1]/eps_f**2))
+      shots_loss[1] = min(np.ceil(loss_s[1]/(p*(learning_rate**2*np.linalg.norm(grads_s[:,0]))**2)),np.ceil(loss_s[1]/eps_f**2))
+
+      if loss_s[0] <= loss_0[0] -c*learning_rate*np.linalg.norm(grads[:,0])**2 + 2*eps_f:
+        self.params = s
+        learning_rate = min(learning_rate_max, gamma*learning_rate)
+      else:
+        learning_rate  /= gamma
+
+      return learning_rate, shots_grad, shots_loss, loss_0
+      
+
 
 
   def data_loader(self, batchsize):
@@ -311,11 +441,19 @@ class vqregressor:
   # ---------------------- Gradient Descent ------------------------------------
 
   def gradient_descent(self, 
-    learning_rate, 
+    learning_rate,
+    learning_rate_max,
+    b,
+    mu,
+    p,
+    gamma,
+    c,
+    eps_f,
     epochs, 
     batchsize = 10,
     restart_from_epoch=None, 
     method='Adam',
+    mode='iCNAS2',
     J_treshold = 1e-5,
     live_plotting=True):
 
@@ -334,7 +472,7 @@ class vqregressor:
       J_treshold (float): target value for the loss function.
     """ 
      
-    if(method != 'Adam' and method != 'Standard'):
+    if(method != 'Adam' and method != 'Standard' and method != 'Rosalin' and method != 'shoals'):
       raise ValueError(
         print('This method does not exist. Please select one of the following: Adam, Standard.')
       )
@@ -348,17 +486,27 @@ class vqregressor:
 
     # we track the loss history
     loss_history = []
-
+    shots_history = []
     # useful if we use adam optimization
     if(method == 'Adam'):
       m = np.zeros(self.nparams)
       v = np.zeros(self.nparams)
+    elif(method == 'Rosalin'):
+      chi1 = np.zeros(self.nparams)
+      xi1 = np.zeros(self.nparams)
+    elif(method == 'shoals'):
+      learning_rate = learning_rate_max
+      shots_grad = self.nshots_param
+      shots_loss = np.zeros(2)
+      shots_loss[0] = self.nshots_loss
+      shots_loss[1] = self.nshots_loss
+      learning_rate = 1
 
+    shots = 0
     # cycle over the epochs
     for epoch in range(epochs):
       
       iteration = 0
-      
       # stop the training if the target loss is reached
       if(epoch != 0 and loss_history[-1] < J_treshold):
         print(
@@ -372,6 +520,12 @@ class vqregressor:
       for data, labels in self.data_loader(batchsize):
         # update iteration tracker
         iteration += 1
+        if(method=='Rosalin'):
+          shots += int(2 * np.sum(self.nshots_param))
+        elif(method=='shoals'):
+          shots += (sum(shots_loss) + sum(shots_grad)*3)*self.nparams
+        else:
+          shots += int(2 * np.sum(self.nshots_param)*self.nparams)
 
         # update parameters using the chosen method
         if(method=='Adam'):
@@ -380,9 +534,17 @@ class vqregressor:
           )
         elif(method=='Standard'):
           dloss, loss = self.evaluate_loss_gradients()
-          self.params -= learning_rate * dloss
+          self.params -= learning_rate * dloss[:, 0]
+        elif(method=='Rosalin'):
+          chi1, xi1, loss = self.apply_rosalin(
+            mode, learning_rate, b, mu, chi1, xi1, data, labels, iteration)
+        elif(method=='shoals'):
+          learning_rate, shots_grad, shots_loss, loss = self.apply_shoals(
+            learning_rate_max, learning_rate, shots_grad, shots_loss, p, gamma, c, eps_f, data, labels, iteration)  
+          #print(learning_rate, shots_grad, shots_loss)
 
-        loss_history.append(loss)
+        loss_history.append(loss[0])
+        shots_history.append(shots)
 
         # track the training
         print(
@@ -391,13 +553,15 @@ class vqregressor:
             " epoch ",
             epoch + 1,
             " | loss: ",
-            loss,
+            loss[0],
+            " | shots: ",
+            shots,
         )
 
         if live_plotting:
           self.show_predictions(f'Live_predictions', save=True)
     
-    return loss_history
+    return loss_history, shots_history
 
 
 
@@ -415,8 +579,8 @@ class vqregressor:
     self.set_parameters(params)
 
     for x, label in zip(self.data, self.labels):
-      prediction = self.step_prediction(x)
-      loss += (prediction -  label)**2
+      prediction = self.step_prediction
+      loss += (prediction[:, 0] -  label)**2
     
     return loss/self.ndata
 
@@ -446,8 +610,7 @@ class vqregressor:
     """This function shows the obtained results through a scatter plot."""
 
     # calculate prediction
-    predictions = self.predict_sample()
-
+    predictions = np.array(self.predict_sample())[:,0]
     # draw the results
     plt.figure(figsize=(12,8))
     plt.title(title)
