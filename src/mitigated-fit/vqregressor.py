@@ -143,6 +143,7 @@ class vqregressor:
   
   
   def one_prediction(self, x, nshots):
+    #print(nshots)
     """This function calculates one prediction with fixed x."""
     self.inject_data(x)
     circuit, observable = self.epx_value()
@@ -175,7 +176,7 @@ class vqregressor:
     var = 1 - obs**2
     if self.obs_hardware:
       obs = np.sqrt(abs(obs))
-      # variance does not change
+      # variance does not change)
     return [obs, var]
 
 
@@ -209,7 +210,7 @@ class vqregressor:
     original = self.params.copy()
     shifted = self.params.copy()
     #nshots = int(self.nshots_param[parameter_index]/self.ndata)
-    nshots = int(np.sum(self.nshots_param))
+    nshots = int(np.sum(self.nshots_param)/self.ndata)
     shifted[parameter_index] += (np.pi / 2) / self.scale_factors[parameter_index]
     self.set_parameters(shifted)
     forward = np.array(self.step_prediction(x, nshots))
@@ -371,7 +372,11 @@ class vqregressor:
     smax = s[argmax_gamma]
 
     self.nshots_param = np.clip(s, min(2, self.min_shots), smax)
-    self.nshots_loss = int(np.sum(self.nshots_param))
+    for i, k in enumerate(self.nshots_param):
+      if k < 2*self.ndata:
+        self.nshots_param[i] = 2*self.ndata
+    print(self.nshots_param)
+    self.nshots_loss = 10000 #int(np.sum(self.nshots_param))
 
     return chi1, xi1, loss
     
