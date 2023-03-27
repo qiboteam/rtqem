@@ -80,17 +80,22 @@ class vqregressor:
         # add RZ if this is not the last layer
         if(l != self.layers - 1):
           c.add(gates.RZ(q=q, theta=0))
+
+    print(c.get_parameters())  
       
-      if self.obs_hardware:
-        c.add(gates.Z(*range(self.nqubits)))
-        c += self.circuit.invert()
-        c.add(gates.M(*range(self.nqubits)))
-        observable = np.zeros((2**self.nqubits,2**self.nqubits))
-        observable[0,0] = 1
-        self.observable = Hamiltonian(self.nqubits, observable)
-      else:
-        # we only add measurements because observable is already in the right form
-        c.add(gates.M(*range(self.nqubits)))
+    if self.obs_hardware:
+      inv_c = c.invert()
+      c.add(gates.Z(*range(self.nqubits)))
+      c += inv_c
+      c.add(gates.M(*range(self.nqubits)))
+      observable = np.zeros((2**self.nqubits,2**self.nqubits))
+      observable[0,0] = 1
+      self.observable = Hamiltonian(self.nqubits, observable)
+    else:
+      # we only add measurements because observable is already in the right form
+      c.add(gates.M(*range(self.nqubits)))
+
+    print(c.draw())
 
     return c
 
