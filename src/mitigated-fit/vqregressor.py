@@ -153,9 +153,9 @@ class vqregressor:
     if self.noise_model != None:
       circuit = self.noise_model.apply(self.circuit)
     if self.exp_from_samples:
-      obs = self.backend.execute_circuit(circuit, nshots=self.nshots).expectation_from_samples(self.observable)
+      obs = self.backend.execute_circuit(self.circuit, nshots=self.nshots).expectation_from_samples(self.observable)
     else:
-      obs = self.observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+      obs = self.observable.expectation(self.backend.execute_circuit(self.circuit, nshots=self.nshots).state())
     if self.obs_hardware:
         obs = np.sqrt(abs(obs))
     return obs
