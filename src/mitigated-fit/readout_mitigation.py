@@ -1,7 +1,6 @@
 from qibo.models import Circuit
 from qibo import gates
-from qibo.backends import NumpyBackend
-from itertools import combinations
+from collections import OrderedDict
 import numpy as np
 
 
@@ -12,50 +11,51 @@ def get_readout_mitigation_matrix(nqubits, backend=None, nshots=1000, noise_mode
       backend = GlobalBackend()
     
     matrix = np.zeros((2**nqubits, 2**nqubits))
-      
-    comb = []
-    for i in range(nqubits + 1):
-        comb += list(combinations(range(nqubits), i)) #check that the ordering is consistent with qibo
-        
-    state2idx, state2comb = {}, {}
-    np_back = NumpyBackend()
-    for c in comb:
-        # get the string representing the X gate combinations, e.g. 001, 110, 000, ...
-        state = np.zeros(nqubits)
-        state[list(c)] = 1
-        state = str(state)[1:-1].replace(' ', '').replace('.', '')
-        state2comb[state] = c
-        # get the order of the states
-        # is there a better way?
-        circuit = Circuit(nqubits)
-        circuit.add([ gates.X(i) for i in c ])
-        idx = np_back.execute_circuit(circuit).state().nonzero()
-        assert len(idx) == 1
-        state2idx[state] = idx[0][0]
 
-    # reorder combinations consistently with qibo ordering
-    state2comb = sorted(list(state2comb.items()), key=lambda x: state2idx[x[0]])
-    
-    for state, c in state2comb:
+    states = []
+    for i in range(2**nqubits):
+        bits = bin(i)[2:]
+        zeros = ''.join(['0' for j in range(nqubits-len(bits))])
+        states.append(zeros+bits)
+
+    for i,state in enumerate(states):
         circuit = Circuit(nqubits)
-        circuit.add([ gates.X(i) for i in c ])
-        circuit.add([ gates.M(i) for i in range(nqubits) ])
+        for q,bit in enumerate(state):
+            if bit == '1':
+                circuit.add(gates.X(q))
+            circuit.add(gates.M(q))
         if noise_model is not None:
-            circuit = noise_model.apply(circuit)
+            #circuit = noise_model.apply(circuit)
+            # random bitflips for testing
+            for q in range(nqubits):
+                if np.random.rand() < 0.2:
+                    circuit.add(gates.X(q))
         freq = backend.execute_circuit(circuit, nshots=nshots).frequencies()
+        print(freq)
         column = []
-        for k, _ in state2comb:
-            f = freq[k] / nshots if k in freq.keys() else 0 
+        for key in states:
+            f = freq[key] / nshots if key in freq.keys() else 0 
             column.append(f)
-        matrix[:,state2idx[state]] = column
+        print(column)
+        matrix[:,i] = column
+    print(matrix)
     return np.linalg.inv(matrix)
 
         
 if __name__ == '__main__':
     
-    from qibo.noise import NoiseModel, DepolarizingError, PauliError
+    from qibo.noise import NoiseModel
     noise = NoiseModel()
-    noise.add(DepolarizingError(lam=0.2), gates.M)
-
+    par = {
+        "t1" : (250*1e-06, 240*1e-06),
+        "t2" : (150*1e-06, 160*1e-06),
+        "gate_time" : (200*1e-9, 400*1e-9),
+        "excited_population" : 0,
+        "depolarizing_error" : (4.000e-4, 1.500e-4),
+        "bitflips_error" : ([0.022, 0.015], [0.034, 0.041]),
+        "idle_qubits" : 1
+    }
+    noise.composite(par)
+    
         
     print(get_readout_mitigation_matrix(3, noise_model=noise))
