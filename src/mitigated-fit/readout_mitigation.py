@@ -14,22 +14,21 @@ def get_readout_mitigation_matrix(nqubits, backend=None, nshots=1000, noise_mode
 
     states = []
     for i in range(2**nqubits):
-        bits = bin(i)[2:]
-        zeros = ''.join(['0' for j in range(nqubits-len(bits))])
-        states.append(zeros+bits)
+        states.append(('{0:0'+str(nqubits)+'b}').format(i))
+
+    if noise_model is not None:
+        # random bitflips for testing
+        p0 = list(0.2*np.random.rand(nqubits))
+    else:
+        p0 = list(np.zeros(nqubits))
 
     for i,state in enumerate(states):
+        print(state)
         circuit = Circuit(nqubits)
         for q,bit in enumerate(state):
             if bit == '1':
                 circuit.add(gates.X(q))
-            circuit.add(gates.M(q))
-        if noise_model is not None:
-            #circuit = noise_model.apply(circuit)
-            # random bitflips for testing
-            for q in range(nqubits):
-                if np.random.rand() < 0.2:
-                    circuit.add(gates.X(q))
+        circuit.add(gates.M(*range(nqubits), p0=p0))
         freq = backend.execute_circuit(circuit, nshots=nshots).frequencies()
         print(freq)
         column = []
