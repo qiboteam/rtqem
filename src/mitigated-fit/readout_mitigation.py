@@ -4,7 +4,7 @@ from collections import OrderedDict
 import numpy as np
 
 
-def get_readout_mitigation_matrix(nqubits, backend=None, nshots=1000, noise_model=None):
+def get_readout_mitigation_matrix(nqubits, backend=None, nshots=1000, p0=None, p1=None):
 
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
@@ -15,46 +15,55 @@ def get_readout_mitigation_matrix(nqubits, backend=None, nshots=1000, noise_mode
     states = []
     for i in range(2**nqubits):
         states.append(('{0:0'+str(nqubits)+'b}').format(i))
-
-    if noise_model is not None:
-        # random bitflips for testing
-        p0 = list(0.2*np.random.rand(nqubits))
-    else:
-        p0 = list(np.zeros(nqubits))
-
+        
     for i,state in enumerate(states):
-        print(state)
         circuit = Circuit(nqubits)
         for q,bit in enumerate(state):
             if bit == '1':
                 circuit.add(gates.X(q))
-        circuit.add(gates.M(*range(nqubits), p0=p0))
+        circuit.add(gates.M(*range(nqubits), p0=p0, p1=p1))
         freq = backend.execute_circuit(circuit, nshots=nshots).frequencies()
-        print(freq)
         column = []
         for key in states:
             f = freq[key] / nshots if key in freq.keys() else 0 
             column.append(f)
-        print(column)
         matrix[:,i] = column
-    print(matrix)
     return np.linalg.inv(matrix)
 
         
 if __name__ == '__main__':
+
+    nqubits = 3
+    nshots = 1000
+    p0 = [0.1, 0.2, 0.3]
+    p1 = [0.3, 0.1, 0.2]
+    mit_m = get_readout_mitigation_matrix(3, nshots=1000, p0=p0, p1=p1)
+
+    states = []
+    for i in range(2**nqubits):
+        states.append(('{0:0'+str(nqubits)+'b}').format(i))
+
+    c = Circuit(nqubits)
+    c.add(gates.X(0))
+    c.add(gates.M(*range(nqubits)))
+
+    freq = c(nshots=nshots).frequencies()
+    for k in states:
+        if k not in freq:
+            freq.update({k:0})
+    freq = np.array([ freq[k] for k in states ]).reshape(-1,1)
+    print(f'> Error Free frequencies:\n {freq}')
+
+    c = Circuit(nqubits)
+    c.add(gates.X(0))
+    c.add(gates.M(*range(nqubits), p0=p0, p1=p1))
+
+    freq = c(nshots=nshots).frequencies()
+    for k in states:
+        if k not in freq:
+            freq.update({k:0})
+    freq = np.array([ freq[k] for k in states ]).reshape(-1,1)
+    print(f'> Noisy frequencies:\n {freq}')
+    print(f'> Mitigated frequencies:\n {mit_m @ freq}')
+
     
-    from qibo.noise import NoiseModel
-    noise = NoiseModel()
-    par = {
-        "t1" : (250*1e-06, 240*1e-06),
-        "t2" : (150*1e-06, 160*1e-06),
-        "gate_time" : (200*1e-9, 400*1e-9),
-        "excited_population" : 0,
-        "depolarizing_error" : (4.000e-4, 1.500e-4),
-        "bitflips_error" : ([0.022, 0.015], [0.034, 0.041]),
-        "idle_qubits" : 1
-    }
-    noise.composite(par)
-    
-        
-    print(get_readout_mitigation_matrix(3, noise_model=noise))
