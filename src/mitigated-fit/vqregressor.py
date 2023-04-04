@@ -79,14 +79,12 @@ class vqregressor:
         ])
         # add RZ if this is not the last layer
         if(l != self.layers - 1):
-          c.add(gates.RZ(q=q, theta=0))
-
-    print(c.get_parameters())  
+          c.add(gates.RZ(q=q, theta=0)) 
       
     if self.obs_hardware:
-      inv_c = c.invert()
+
       c.add(gates.Z(*range(self.nqubits)))
-      c += inv_c
+      c += c.invert()
       c.add(gates.M(*range(self.nqubits)))
       observable = np.zeros((2**self.nqubits,2**self.nqubits))
       observable[0,0] = 1
@@ -120,10 +118,12 @@ class vqregressor:
         # add RZ if this is not the last layer
         if(l != self.layers - 1):
           params.append(self.params[index + 2] * x + self.params[index + 3])
-          # updating also for the inverse circuit
+          self.scale_factors[index + 2] = x
+
           if self.obs_hardware:
-            self.scale_factors[index + 2] = x
-          # we have four parameters per layer
+            # nparams - (index + 2) - 1
+            self.scale_factors[self.nparams - index - 3] = x
+
           index += 4
       
       # filling also params of the inverse circuit
@@ -136,7 +136,12 @@ class vqregressor:
 
   def set_parameters(self, new_params):
         """Function which sets the new parameters into the circuit"""
-        self.params = new_params
+        if self.obs_hardware:
+          params = np.concatenate((new_params, new_params[::-1]))
+        else:
+          params = new_params
+        
+        self.params = params
 
   
   def get_parameters(self):
@@ -219,6 +224,21 @@ class vqregressor:
 
     result = 0.5 * (forward - backward) * self.scale_factors[parameter_index]
     return result
+  
+
+# ------------------------- gradient check -------------------------------------
+
+  def tf_gradients(self, x):
+    """Checks gradients calculated using tensorflow gradient tape."""
+
+    qibo.set_backend('tensorflow')
+    import tensorflow as tf
+
+    with tf.GradientTape as tape:
+      tape.watch(self.params)
+      prediction = self.step_prediction(x)
+
+    return tape.gradient(prediction, [self.params])
 
 # ------------------------- Derivative of <O> ----------------------------------
 
