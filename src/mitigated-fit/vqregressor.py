@@ -10,7 +10,9 @@ from qibo.symbols import Z
 # some useful python package
 import numpy as np
 import matplotlib.pyplot as plt
+import scienceplots
 
+plt.style.use('science')
 # numpy backend is enough for a 1-qubit model
 qibo.set_backend('numpy')
 
@@ -449,18 +451,18 @@ class vqregressor:
     predictions = self.predict_sample()
 
     # draw the results
-    plt.figure(figsize=(12,8))
-    plt.title(title)
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.scatter(self.data, self.labels, color='orange', alpha=0.6, label='Original', s=70, marker='o')
-    plt.scatter(self.data, predictions, color='purple', alpha=0.6, label='Predictions', s=70, marker='o')
+    fig, ax = plt.subplots(1,1,figsize=(5,5))
+    ax.set_title(title)
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.scatter(self.data, self.labels, color='orange', alpha=0.6, label='Original', s=40, marker='o')
+    ax.scatter(self.data, predictions, color='purple', alpha=0.6, label='Predictions', s=40, marker='o')
 
-    plt.legend()
+    ax.legend()
 
     # we save all the images during the training in order to see the evolution
     if save:
-      plt.savefig(str(title) + '.png')
+      fig.savefig(str(title) + '.pdf', bbox_inches='tight')
       plt.close()
 
     plt.show()

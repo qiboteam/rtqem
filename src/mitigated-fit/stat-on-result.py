@@ -6,6 +6,7 @@ import argparse, random
 from qibo.noise import NoiseModel, DepolarizingError
 from qibo import gates
 
+import scienceplots
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
 
 parser = argparse.ArgumentParser()
@@ -103,7 +104,7 @@ def main(args):
     stds = np.asarray(stds)
 
     # plot results
-    plt.figure(figsize=(8,6))
+    plt.figure(figsize=(5,5))
     plt.title('Statistics on results')
     plt.xlabel('x')
     plt.ylabel('y')
@@ -112,7 +113,7 @@ def main(args):
     plt.fill_between(data, means-stds , means+stds, alpha=0.25, color='purple',
                     label='Confidence belt')
     plt.legend()
-    plt.savefig('stat-on-result.png')
+    plt.savefig('stat-on-result.pdf', bbox_inches='tight')
     plt.show()
 
 # ---------------------- EXECUTE MAIN ------------------------------------------
