@@ -23,10 +23,10 @@ def get_readout_mitigation_matrix(nqubits, backend=None, nshots=1000, p0=None, p
                 circuit.add(gates.X(q))
         circuit.add(gates.M(*range(nqubits), p0=p0, p1=p1))
         freq = backend.execute_circuit(circuit, nshots=nshots).frequencies()
-        column = []
-        for key in states:
-            f = freq[key] / nshots if key in freq.keys() else 0 
-            column.append(f)
+        column = np.zeros(2**nqubits)
+        for key in freq.keys():
+            f = freq[key] / nshots 
+            column[int(key,2)] = f
         matrix[:,i] = column
     return np.linalg.inv(matrix)
 
@@ -47,22 +47,22 @@ if __name__ == '__main__':
     c.add(gates.X(0))
     c.add(gates.M(*range(nqubits)))
 
-    freq = c(nshots=nshots).frequencies()
-    for k in states:
-        if k not in freq:
-            freq.update({k:0})
-    freq = np.array([ freq[k] for k in states ]).reshape(-1,1)
+    freq = np.zeros(2**nqubits)
+    for k,v in c(nshots=nshots).frequencies().items():
+        f = v / nshots
+        freq[int(k,2)] = f
+    freq = freq.reshape(-1,1)
     print(f'> Error Free frequencies:\n {freq}')
 
     c = Circuit(nqubits)
     c.add(gates.X(0))
     c.add(gates.M(*range(nqubits), p0=p0, p1=p1))
 
-    freq = c(nshots=nshots).frequencies()
-    for k in states:
-        if k not in freq:
-            freq.update({k:0})
-    freq = np.array([ freq[k] for k in states ]).reshape(-1,1)
+    freq = np.zeros(2**nqubits)
+    for k,v in c(nshots=nshots).frequencies().items():
+        f = v / nshots
+        freq[int(k,2)] = f
+    freq = freq.reshape(-1,1)
     print(f'> Noisy frequencies:\n {freq}')
     print(f'> Mitigated frequencies:\n {mit_m @ freq}')
 
