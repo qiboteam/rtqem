@@ -83,8 +83,9 @@ class vqregressor:
       
     if self.obs_hardware:
 
+      inv_c = c.invert()
       c.add(gates.Z(*range(self.nqubits)))
-      c += c.invert()
+      c += inv_c
       c.add(gates.M(*range(self.nqubits)))
       observable = np.zeros((2**self.nqubits,2**self.nqubits))
       observable[0,0] = 1
