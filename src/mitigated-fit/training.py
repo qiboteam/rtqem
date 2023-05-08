@@ -2,8 +2,14 @@
 import numpy as np
 import scipy.stats, argparse, json, random
 from vqregressor import vqregressor
-from qibo.noise import NoiseModel, DepolarizingError
+from qibo.noise import NoiseModel, DepolarizingError, ReadoutError
 from qibo import gates
+from qibo.models.error_mitigation import (
+    get_calibration_matrix,
+    apply_readout_mitigation,
+    apply_randomized_readout_mitigation
+)
+from qibo.quantum_info import random_stochastic_matrix
 
 parser = argparse.ArgumentParser(description='Training the vqregressor')
 parser.add_argument('example')
@@ -41,13 +47,27 @@ elif conf['function'] == 'gluon':
 if conf['noise']:
     noise = NoiseModel()
     noise.add(DepolarizingError(lam=0.1), gates.RX)
+    prob = random_stochastic_matrix(
+        2**nqubits, diagonally_dominant=True, seed=2
+    )
+    noise.add(ReadoutError(probabilities=prob), gate=gates.M)
 else:
     noise = None
 
+readout = {}
+if conf['readout'] is not None:
+    if conf['readout'] == 'calibration_matrix':
+        cal_m = get_calibration_matrix(nqubits, noise_model=noise, nshots=conf['nshots'])
+        readout = {'calibration_matrix': cal_m}
+    elif conf['readout'] == 'randomized':
+        readout = {'ncircuits': 10}
+    else:
+        raise AssertionError("Invalid readout mitigation method specified.")
+
 mit_kwargs = {
-    'ZNE': {'noise_levels':np.arange(5), 'insertion_gate':'RX'},
-    'CDR': {'n_training_samples':10},
-    'vnCDR': {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX'},
+    'ZNE': {'noise_levels': np.arange(5), 'insertion_gate': 'RX', 'readout': readout},
+    'CDR': {'n_training_samples': 10, 'readout': readout},
+    'vnCDR': {'n_training_samples': 10, 'noise_levels': np.arange(3), 'insertion_gate': 'RX', 'readout': readout},
     None: {}
 }
 
