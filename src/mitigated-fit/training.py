@@ -4,6 +4,8 @@ import scipy.stats, argparse, json, random
 from vqregressor import vqregressor
 from qibo.noise import NoiseModel, DepolarizingError
 from qibo import gates
+from qibo.backends import construct_backend
+from qibo.models.error_mitigation import calibration_matrix
 
 parser = argparse.ArgumentParser(description='Training the vqregressor')
 parser.add_argument('example')
@@ -44,10 +46,26 @@ if conf['noise']:
 else:
     noise = None
 
+if conf['qibolab']:
+    backend = construct_backend('qibolab','tii1q_b1')
+else:
+    backend = None
+
+cal_m = None
+ncircuits = None
+if conf["mitigation"]['readout'] is not None:
+    if conf["mitigation"]['readout'] == 'calibration_matrix':
+        cal_m = calibration_matrix(1, backend=backend, noise_model=None, nshots=conf['nshots'])
+        np.save('cal_matrix.npy',cal_m)
+    elif conf["mitigation"]['readout'] == 'randomized':
+        ncircuits = 10
+    else:
+        raise AssertionError("Invalid readout mitigation method specified.")
+    
 mit_kwargs = {
-    'ZNE': {'noise_levels':np.arange(5), 'insertion_gate':'RX'},
-    'CDR': {'n_training_samples':10},
-    'vnCDR': {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX'},
+    'ZNE': {'noise_levels':np.arange(5), 'insertion_gate':'RX', 'readout':{'calibration_matrix':cal_m, 'ncircuits':ncircuits}},
+    'CDR': {'n_training_samples':10, 'readout':{'calibration_matrix':cal_m, 'ncircuits':ncircuits}},
+    'vnCDR': {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX', 'readout':{'calibration_matrix':cal_m, 'ncircuits':ncircuits}},
     None: {}
 }
 
@@ -57,28 +75,31 @@ VQR = vqregressor(
     labels=labels,
     nshots=conf['nshots'],
     expectation_from_samples=conf['expectation_from_samples'],
-    obs_hardware =conf['obs_hardware'], 
+    obs_hardware =conf['obs_hardware'],
+    backend = backend,
     noise_model=noise,
     mitigation=conf['mitigation'],
     mit_kwargs=mit_kwargs[conf['mitigation']['method']],
     scaler=scaler
 )
 
-if conf['optimizer'] == 'Adam':
-    # set the training hyper-parameters
-    epochs = conf['epochs']
-    learning_rate = conf['learning_rate']
-    # perform the training
-    history = VQR.gradient_descent(
-        learning_rate=learning_rate, 
-        epochs=epochs, 
-        restart_from_epoch=conf['restart_from_epoch'],
-        batchsize=conf['batchsize'],
-        method='Adam'
-    )
-elif conf['optimizer'] == 'CMA':
-    VQR.cma_optimization()
+# if conf['optimizer'] == 'Adam':
+#     # set the training hyper-parameters
+#     epochs = conf['epochs']
+#     learning_rate = conf['learning_rate']
+#     # perform the training
+#     history = VQR.gradient_descent(
+#         learning_rate=learning_rate, 
+#         epochs=epochs, 
+#         restart_from_epoch=conf['restart_from_epoch'],
+#         batchsize=conf['batchsize'],
+#         method='Adam'
+#     )
+# elif conf['optimizer'] == 'CMA':
+#     VQR.cma_optimization()
 
+best_params = np.load('gluon/best_params_Adam.npy',allow_pickle=True)
+VQR.params = best_params
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{args.example}/best_params_{conf['optimizer']}", VQR.params)
