@@ -51,21 +51,21 @@ if conf['qibolab']:
 else:
     backend = None
 
-cal_m = None
-ncircuits = None
+readout = {}
 if conf["mitigation"]['readout'] is not None:
     if conf["mitigation"]['readout'] == 'calibration_matrix':
         cal_m = calibration_matrix(1, backend=backend, noise_model=None, nshots=conf['nshots'])
         np.save('cal_matrix.npy',cal_m)
+        readout['calibration_matrix':cal_m]
     elif conf["mitigation"]['readout'] == 'randomized':
-        ncircuits = 10
+        readout['ncircuits':10]
     else:
         raise AssertionError("Invalid readout mitigation method specified.")
     
 mit_kwargs = {
-    'ZNE': {'noise_levels':np.arange(5), 'insertion_gate':'RX', 'readout':{'calibration_matrix':cal_m, 'ncircuits':ncircuits}},
-    'CDR': {'n_training_samples':10, 'readout':{'calibration_matrix':cal_m, 'ncircuits':ncircuits}},
-    'vnCDR': {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX', 'readout':{'calibration_matrix':cal_m, 'ncircuits':ncircuits}},
+    'ZNE': {'noise_levels':np.arange(5), 'insertion_gate':'RX', 'readout':readout},
+    'CDR': {'n_training_samples':10, 'readout':readout},
+    'vnCDR': {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX', 'readout':readout},
     None: {}
 }
 
