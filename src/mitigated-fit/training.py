@@ -59,12 +59,12 @@ if conf["mitigation"]['readout'] is not None:
     if conf["mitigation"]['readout'] == 'calibration_matrix':
         cal_m = calibration_matrix(1, backend=backend, noise_model=None, nshots=conf['nshots'])
         np.save('cal_matrix.npy',cal_m)
-        readout['calibration_matrix':cal_m]
+        readout['calibration_matrix'] = cal_m
     elif conf["mitigation"]['readout'] == 'randomized':
-        readout['ncircuits':10]
+        readout['ncircuits'] = 10
     else:
         raise AssertionError("Invalid readout mitigation method specified.")
-    
+
 mit_kwargs = {
     'ZNE': {'noise_levels':np.arange(5), 'insertion_gate':'RX', 'readout':readout},
     'CDR': {'n_training_samples':10, 'readout':readout},
@@ -101,7 +101,7 @@ VQR = vqregressor(
 # elif conf['optimizer'] == 'CMA':
 #     VQR.cma_optimization()
 
-best_params = np.load('gluon/best_params_Adam.npy',allow_pickle=True)
+best_params = np.load('gluon/best_params_Adam_1.npy',allow_pickle=True)
 VQR.params = best_params
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
