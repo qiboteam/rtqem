@@ -37,8 +37,6 @@ class vqregressor:
       from qibo.backends import GlobalBackend
 
       self.backend = GlobalBackend()
-    if mitigation['method'] is not None:
-      self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
 
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
@@ -49,6 +47,10 @@ class vqregressor:
     self.params = np.random.randn(self.nparams)
     # scaling factor for custom parameter shift rule
     self.scale_factors = np.ones(self.nparams)
+
+    if mitigation['method'] is not None:
+      self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
+      self.mit_params = self.get_fit()
 
 # ---------------------------- ANSATZ ------------------------------------------
 
@@ -140,22 +142,48 @@ class vqregressor:
     if self.obs_hardware:
         obs = np.sqrt(abs(obs))
     return obs
-
+  
+  def one_prediction_readout(self, x):
+    """This function calculates one prediction with fixed x."""
+    self.inject_data(x)
+    circuit, observable = self.epx_value()
+    if self.noise_model != None:
+      circuit = self.noise_model.apply(circuit)
+    if self.exp_from_samples:
+      result = self.backend.execute_circuit(circuit, nshots=self.nshots)
+      readout_args = self.mit_kwargs['readout']
+      if readout_args != {}:
+        result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
+      obs = result.expectation_from_samples(observable)
+    else:
+      obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+    if self.obs_hardware:
+        obs = np.sqrt(abs(obs))
+    return obs
+  
+  def get_fit(self):
+    mean_params = []
+    for k in range(4):
+      self.circuit.set_parameters(np.random.uniform(-np.pi,np.pi,int(self.nparams/2)))
+      circuit, observable = self.epx_value()
+      params = self.mitigation['method'](
+        circuit=circuit,
+        observable=observable,
+        noise_model=self.noise_model,
+        backend=self.backend,
+        nshots=self.nshots,
+        full_output=True,
+        **self.mit_kwargs
+      )[2]
+      print(params)
+      mean_params.append(params)
+    mean_params = np.mean(mean_params,axis=0)
+    return mean_params
 
   def one_mitigated_prediction(self, x):
     """This function calculates one mitigated prediction with fixed x."""
-    self.inject_data(x)
-    circuit, observable = self.epx_value()
-    obs = self.mitigation['method'](
-      circuit=circuit,
-      observable=observable,
-      noise_model=self.noise_model,
-      backend=self.backend,
-      nshots=self.nshots,
-      **self.mit_kwargs
-    )
-    if self.obs_hardware:
-      obs = np.sqrt(abs(obs))
+    obs_noisy = self.one_prediction_readout(x)
+    obs = self.mit_params[0]*obs_noisy + self.mit_params[1]
     return obs
 
 
@@ -287,7 +315,7 @@ class vqregressor:
     v = beta_2 * v + (1 - beta_2) * grads * grads
     mhat = m / (1.0 - beta_1 ** (iteration + 1))
     vhat = v / (1.0 - beta_2 ** (iteration + 1))
-    self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
+    self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon) 
 
     return m, v, loss
 
