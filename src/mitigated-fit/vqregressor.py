@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # numpy backend is enough for a 1-qubit model
-qibo.set_backend('numpy')
+# qibo.set_backend('qibolab', platform='tii1q_b1')
 
 class vqregressor:
 

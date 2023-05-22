@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import scipy.stats, json
 import argparse, random
 from qibo.noise import NoiseModel, DepolarizingError
-from qibo import gates
+from qibo import gates, set_backend
 
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
 
@@ -33,6 +33,9 @@ def main(args):
     with open(conf_file, 'r') as f:
         conf = json.load(f)
 
+
+    set_backend('qibolab', platform='tii1q_b1')
+
     # load best parameters
     if args.best_params_path is not None:
         best_params = np.load(args.best_params_path)
@@ -40,13 +43,16 @@ def main(args):
         best_params = np.load(f"{args.example}/best_params_{conf['optimizer']}.npy")
         
     # define dataset cardinality and number of executions
-    ndata = 99
-    nruns = 100
+    ndata = 30
+    nruns = 30
 
     data = np.linspace(-1, 1, ndata)
     scaler = lambda x: x
     if conf['function'] == 'sinus':
         labels = np.sin(2*data)
+    elif conf['function'] == 'hdw_target':
+        labels = np.sin(2*data) - 0.6*np.cos(4*data)
+        labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
     elif conf['function'] == 'gamma':
         labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
     elif conf['function'] == 'gluon':

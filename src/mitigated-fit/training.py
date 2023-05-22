@@ -1,14 +1,18 @@
 # some useful python package
 import numpy as np
+import time
 import scipy.stats, argparse, json, random
 from vqregressor import vqregressor
 from qibo.noise import NoiseModel, DepolarizingError
-from qibo import gates
+from qibo import gates, set_backend
+from uniplot import plot
 
 parser = argparse.ArgumentParser(description='Training the vqregressor')
 parser.add_argument('example')
 
 args = parser.parse_args()
+
+set_backend('qibolab', platform='tii1q_b1')
 
 if args.example[-1] == '/':
     args.example = args.example[:-1]
@@ -67,6 +71,7 @@ VQR = vqregressor(
     scaler=scaler
 )
 
+start = time.time()
 if conf['optimizer'] == 'Adam':
     # set the training hyper-parameters
     epochs = conf['epochs']
@@ -81,7 +86,13 @@ if conf['optimizer'] == 'Adam':
     )
 elif conf['optimizer'] == 'CMA':
     VQR.cma_optimization()
+end = time.time()
 
+predictions = VQR.predict_sample()
+
+plot([labels, predictions], legend_labels=["target", "predictions"])
+
+print(f"Execution time required: ", (end-start))
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{args.example}/best_params_{conf['optimizer']}", VQR.params)
