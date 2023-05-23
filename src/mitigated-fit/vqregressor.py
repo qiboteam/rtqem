@@ -46,7 +46,7 @@ class vqregressor:
     # get the number of parameters
     self.nparams = (nqubits * layers * 4) - 2
     # set the initial value of the variational parameters
-    self.params = np.random.randn(self.nparams)
+    self.params = np.random.randn(self.nparams) 
     # scaling factor for custom parameter shift rule
     self.scale_factors = np.ones(self.nparams)
 
@@ -438,6 +438,8 @@ class vqregressor:
       parameters = r[1].result.xbest
       
       return result, parameters
+  
+
 
 
 # ---------------------- PLOTTING FUNCTION -------------------------------------
