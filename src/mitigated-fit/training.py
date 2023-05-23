@@ -54,7 +54,7 @@ else:
 readout = {}
 if conf["mitigation"]['readout'] is not None:
     if conf["mitigation"]['readout'] == 'calibration_matrix':
-        cal_m = calibration_matrix(1, backend=backend, noise_model=None, nshots=conf['nshots'])
+        cal_m = calibration_matrix(1, backend=backend, noise_model=noise, nshots=conf['nshots'])
         np.save('cal_matrix.npy',cal_m)
         readout['calibration_matrix'] = cal_m
     elif conf["mitigation"]['readout'] == 'randomized':

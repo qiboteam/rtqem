@@ -144,7 +144,7 @@ class vqregressor:
     return obs
   
   def one_prediction_readout(self, x):
-    """This function calculates one prediction with fixed x."""
+    """This function calculates one prediction with fixed x and readout mitigation."""
     self.inject_data(x)
     circuit, observable = self.epx_value()
     if self.noise_model != None:
