@@ -387,7 +387,7 @@ class vqregressor:
     # cycle over the epochs
     for epoch in range(epochs):
 
-      if self.mitigation['method'] is not None and epoch%epoch_CDR==0 and epoch != 0:   
+      if self.mitigation['final'] is True and epoch%epoch_CDR==0 and epoch != 0:   
         self.mit_params = self.get_fit()
       
       iteration = 0
