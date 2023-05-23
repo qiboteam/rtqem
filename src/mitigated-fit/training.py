@@ -31,9 +31,6 @@ if conf['function'] == 'sinus':
     labels = np.sin(2*data)
 elif conf['function'] == 'gamma':
     labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
-elif conf['function'] == 'hdw_target':
-    labels = np.sin(2*data) - 0.6*np.cos(4*data)
-    labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
 elif conf['function'] == 'gluon':
     scaler = lambda x: np.log(x)
     parton = conf['parton']
@@ -86,23 +83,23 @@ VQR = vqregressor(
     scaler=scaler
 )
 
-# if conf['optimizer'] == 'Adam':
-#     # set the training hyper-parameters
-#     epochs = conf['epochs']
-#     learning_rate = conf['learning_rate']
-#     # perform the training
-#     history = VQR.gradient_descent(
-#         learning_rate=learning_rate, 
-#         epochs=epochs, 
-#         restart_from_epoch=conf['restart_from_epoch'],
-#         batchsize=conf['batchsize'],
-#         method='Adam'
-#     )
-# elif conf['optimizer'] == 'CMA':
-#     VQR.cma_optimization()
+if conf['optimizer'] == 'Adam':
+    # set the training hyper-parameters
+    epochs = conf['epochs']
+    learning_rate = conf['learning_rate']
+    # perform the training
+    history = VQR.gradient_descent(
+        learning_rate=learning_rate, 
+        epochs=epochs, 
+        restart_from_epoch=conf['restart_from_epoch'],
+        batchsize=conf['batchsize'],
+        method='Adam'
+    )
+elif conf['optimizer'] == 'CMA':
+    VQR.cma_optimization()
 
-best_params = np.load('gluon/best_params_Adam_1.npy',allow_pickle=True)
-VQR.params = best_params
+# best_params = np.load('gluon/best_params_Adam_1.npy',allow_pickle=True)
+# VQR.params = best_params
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{args.example}/best_params_{conf['optimizer']}", VQR.params)
