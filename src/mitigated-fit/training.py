@@ -4,6 +4,7 @@ import scipy.stats, argparse, json, random
 from vqregressor import vqregressor
 from qibo.noise import NoiseModel, DepolarizingError
 from qibo import gates
+from savedata_utils import get_training_type
 
 parser = argparse.ArgumentParser(description='Training the vqregressor')
 parser.add_argument('example')
@@ -20,6 +21,9 @@ with open('{}/{}.conf'.format(args.example, args.example), 'r') as f:
 nqubits = conf['nqubits']
 layers = conf['nlayers']
 ndata = conf['ndata']
+
+# get string to identify the training type
+training_type = get_training_type(conf)
 
 # random data
 data = np.linspace(-1, 1, ndata)
@@ -84,4 +88,4 @@ elif conf['optimizer'] == 'CMA':
 
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
-np.save(f"{args.example}/best_params_{conf['optimizer']}", VQR.params)
+np.save(f"{args.example}/best_params_{conf['optimizer']}_{training_type}", VQR.params)
