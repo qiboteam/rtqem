@@ -292,6 +292,7 @@ class vqregressor:
     beta_1=0.85,
     beta_2=0.99,
     epsilon=1e-8,
+    lamb = 0
   ):
     """
     Implementation of the Adam optimizer: during a run of this function parameters are updated.
@@ -315,7 +316,7 @@ class vqregressor:
     v = beta_2 * v + (1 - beta_2) * grads * grads
     mhat = m / (1.0 - beta_1 ** (iteration + 1))
     vhat = v / (1.0 - beta_2 ** (iteration + 1))
-    self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon) 
+    self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon) - lamb*self.params
 
     return m, v, loss
 
@@ -345,6 +346,7 @@ class vqregressor:
     restart_from_epoch=None, 
     method='Adam',
     J_treshold = 1e-5,
+    epoch_CDR = 10,
     live_plotting=True):
 
     """
@@ -384,6 +386,9 @@ class vqregressor:
 
     # cycle over the epochs
     for epoch in range(epochs):
+
+      if self.mitigation['method'] is not None and epoch%epoch_CDR==0 and epoch != 0:   
+        self.mit_params = self.get_fit()
       
       iteration = 0
       
