@@ -5,6 +5,8 @@ import scipy.stats, argparse, json, random
 from vqregressor import vqregressor
 from qibo.noise import NoiseModel, DepolarizingError
 from qibo import gates, set_backend
+from qibo.backends import construct_backend
+from qibo.models.error_mitigation import calibration_matrix
 from uniplot import plot
 
 parser = argparse.ArgumentParser(description='Training the vqregressor')
@@ -33,9 +35,6 @@ if conf['function'] == 'sinus':
     labels = np.sin(2*data)
 elif conf['function'] == 'gamma':
     labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
-elif conf['function'] == 'hdw_target':
-    labels = np.sin(2*data) - 0.6*np.cos(4*data)
-    labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
 elif conf['function'] == 'gluon':
     scaler = lambda x: np.log(x)
     parton = conf['parton']
@@ -51,10 +50,26 @@ if conf['noise']:
 else:
     noise = None
 
+if conf['qibolab']:
+    backend = construct_backend('qibolab','tii1q_b1')
+else:
+    backend = None
+
+readout = {}
+if conf["mitigation"]['readout'] is not None:
+    if conf["mitigation"]['readout'] == 'calibration_matrix':
+        cal_m = calibration_matrix(1, backend=backend, noise_model=noise, nshots=conf['nshots'])
+        np.save('cal_matrix.npy',cal_m)
+        readout['calibration_matrix'] = cal_m
+    elif conf["mitigation"]['readout'] == 'randomized':
+        readout['ncircuits'] = 10
+    else:
+        raise AssertionError("Invalid readout mitigation method specified.")
+
 mit_kwargs = {
-    'ZNE': {'noise_levels':np.arange(5), 'insertion_gate':'RX'},
-    'CDR': {'n_training_samples':10},
-    'vnCDR': {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX'},
+    'ZNE': {'noise_levels':np.arange(5), 'insertion_gate':'RX', 'readout':readout},
+    'CDR': {'n_training_samples':10, 'readout':readout},
+    'vnCDR': {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX', 'readout':readout},
     None: {}
 }
 
@@ -64,7 +79,8 @@ VQR = vqregressor(
     labels=labels,
     nshots=conf['nshots'],
     expectation_from_samples=conf['expectation_from_samples'],
-    obs_hardware =conf['obs_hardware'], 
+    obs_hardware =conf['obs_hardware'],
+    backend = backend,
     noise_model=noise,
     mitigation=conf['mitigation'],
     mit_kwargs=mit_kwargs[conf['mitigation']['method']],
@@ -93,6 +109,9 @@ predictions = VQR.predict_sample()
 plot([labels, predictions], legend_labels=["target", "predictions"])
 
 print(f"Execution time required: ", (end-start))
+
+# best_params = np.load('gluon/best_params_Adam.npy',allow_pickle=True)
+# VQR.params = best_params
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{args.example}/best_params_{conf['optimizer']}", VQR.params)
