@@ -87,7 +87,8 @@ VQR = vqregressor(
     noise_model=noise,
     mitigation=conf['mitigation'],
     mit_kwargs=mit_kwargs[conf['mitigation']['method']],
-    scaler=scaler
+    scaler=scaler,
+    example=args.example
 )
 
 start = time.time()
