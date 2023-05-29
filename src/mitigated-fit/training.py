@@ -14,7 +14,6 @@ parser.add_argument('example')
 
 args = parser.parse_args()
 
-set_backend('qibolab', platform='tii1q_b1')
 
 if args.example[-1] == '/':
     args.example = args.example[:-1]
