@@ -311,7 +311,7 @@ class vqregressor:
     vhat = v / (1.0 - beta_2 ** (iteration + 1))
     self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
 
-    return m, v, loss
+    return m, v, loss, grads
 
 
   def data_loader(self, batchsize):
@@ -409,14 +409,14 @@ class vqregressor:
 
         # update parameters using the chosen method
         if(method=='Adam'):
-          m, v, loss = self.apply_adam(
+          m, v, loss, grads = self.apply_adam(
               learning_rate, m, v, data, labels, iteration
           )
         elif(method=='Standard'):
-          dloss, loss = self.evaluate_loss_gradients()
+          grads, loss = self.evaluate_loss_gradients()
           self.params -= learning_rate * dloss
 
-        grad_history.append(dloss)
+        grad_history.append(grads)
         loss_history.append(loss)
         
         # track the training
