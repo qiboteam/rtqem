@@ -361,14 +361,16 @@ class vqregressor:
         print('This method does not exist. Please select one of the following: Adam, Standard.')
       )
 
+    cache_dir = f"{self.example}/cache"
+
     # creating folder where to save params during training
-    if not os.path.exists(f"{self.example}/params_history"):
-      os.makedirs(f"{self.example}/params_history")
+    if not os.path.exists(f"{cache_dir}/params_history"):
+      os.makedirs(f"{cache_dir}/params_history")
 
     # resuming old training
     if restart_from_epoch is not None:
       print(f"Resuming parameters from epoch {restart_from_epoch}")
-      resume_params = np.load(f"{self.example}/params_history/params_epoch_{restart_from_epoch}.npy")
+      resume_params = np.load(f"{cache_dir}/params_history/params_epoch_{restart_from_epoch}.npy")
       self.set_parameters(resume_params)
     else:
       restart_from_epoch = 0
@@ -379,7 +381,7 @@ class vqregressor:
       restart = restart_from_epoch
 
     # we track the loss history
-    loss_history = []
+    loss_history, grad_history = [], []
 
     # useful if we use adam optimization
     if(method == 'Adam'):
@@ -414,8 +416,9 @@ class vqregressor:
           dloss, loss = self.evaluate_loss_gradients()
           self.params -= learning_rate * dloss
 
+        grad_history.append(dloss)
         loss_history.append(loss)
-
+        
         # track the training
         print(
             "Iteration ",
@@ -426,8 +429,10 @@ class vqregressor:
             loss,
         )
 
-        np.save(arr=self.params, file=f"{self.example}/params_history/params_epoch_{epoch + restart + 1}")
-
+        np.save(arr=self.params, file=f"{cache_dir}/params_history/params_epoch_{epoch + restart + 1}")
+        np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history")        
+        np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history")        
+        
         if live_plotting:
           self.show_predictions(f'Live_predictions', save=True)
     

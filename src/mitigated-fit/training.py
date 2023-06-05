@@ -1,6 +1,6 @@
 # some useful python package
 import numpy as np
-import time
+import time, os
 import scipy.stats, argparse, json, random
 from vqregressor import vqregressor
 from qibo.noise import NoiseModel, DepolarizingError
@@ -17,6 +17,10 @@ args = parser.parse_args()
 
 if args.example[-1] == '/':
     args.example = args.example[:-1]
+
+cache_dir = f"{args.example}/cache"
+if not os.path.exists(cache_dir):
+    os.makedirs(cache_dir)
 
 with open('{}/{}.conf'.format(args.example, args.example), 'r') as f:
     conf = json.loads(f.read())
@@ -53,7 +57,7 @@ else:
     noise = None
 
 if conf['qibolab']:
-    backend = construct_backend('qibolab','tii1q_b1')
+    backend = construct_backend('qibolab', conf['platform'])
 else:
     backend = None
 
@@ -61,7 +65,7 @@ readout = {}
 if conf["mitigation"]['readout'] is not None:
     if conf["mitigation"]['readout'] == 'calibration_matrix':
         cal_m = calibration_matrix(1, backend=backend, noise_model=noise, nshots=conf['nshots'])
-        np.save('cal_matrix.npy',cal_m)
+        np.save(f'{cache_dir}/cal_matrix.npy', cal_m)
         readout['calibration_matrix'] = cal_m
     elif conf["mitigation"]['readout'] == 'randomized':
         readout['ncircuits'] = 10
@@ -116,5 +120,5 @@ print(f"Execution time required: ", (end-start))
 # best_params = np.load('gluon/best_params_Adam.npy',allow_pickle=True)
 # VQR.params = best_params
 
-VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
-np.save(f"{args.example}/best_params_{conf['optimizer']}", VQR.params)
+VQR.show_predictions(f"{cache_dir}/predictions_{conf['optimizer']}", save=True)
+np.save(f"{cache_dir}/best_params_{conf['optimizer']}", VQR.params)

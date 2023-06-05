@@ -41,10 +41,11 @@ def main(args):
     with open(conf_file, 'r') as f:
         conf = json.load(f)
 
-    if args.platform == 'sim':
+    platform = conf['platform']
+    if platform == 'sim':
         set_backend('numpy')
     else:
-        set_backend('qibolab', platform=args.platform)
+        set_backend('qibolab', platform=platform)
 
     # load best parameters
     if args.best_params_path is not None:
@@ -134,8 +135,8 @@ def main(args):
 
     # TO DO: ADD FUNCTION WHICH CLASSIFIES THE TRAINING
 
-    np.save(arr=means, file=f'{args.example}/means_{args.platform}')
-    np.save(arr=stds, file=f'{args.example}/stds_{args.platform}')
+    np.save(arr=means, file=f'{args.example}/means_{platform}')
+    np.save(arr=stds, file=f'{args.example}/stds_{platform}')
 
 # ---------------------- EXECUTE MAIN ------------------------------------------
 
