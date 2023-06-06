@@ -19,25 +19,25 @@ def get_training_type(conf_dictionary):
 
     if conf_mitigation["method"] == None:
         if conf_mitigation["readout"] == "null":
-            training_type = "1"
+            training_type = "unmitigated_"
         else:
-            training_type = "2"
+            training_type = "readout_mitigation_"
     else:
         if conf_mitigation["readout"] == "null":
-            training_type = "3"
+            training_type = "realtime_mitigation_"
         else:
-            training_type = "4"
+            training_type = "full_mitigation_"
 
-    if conf_mitigation["step"] == "false":
-        if conf_mitigation["final"] == "false":
-            step_flag = "A"
+    if conf_mitigation["step"] is False:
+        if conf_mitigation["final"] is False:
+            step_flag = "step_no_final_no"
         else:
-            step_flag = "C"
+            step_flag = "step_no_final_yes"
     else:
-        if conf_mitigation["final"] == "false":
-            step_flag = "B"
+        if conf_mitigation["final"] is False:
+            step_flag = "step_yes_final_no"
         else:
-            step_flag = "D"
+            step_flag = "step_yes_final_yes"
     
     return training_type + step_flag
         
