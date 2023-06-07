@@ -70,6 +70,7 @@ def main(args):
         scaler = lambda x: np.log(x)
         parton = conf['parton']
         data = np.loadtxt(f'gluon/data/{parton}.dat')
+        idx = np.sort(random.sample(range(len(data)), ndata))
         labels = data.T[1]
         data = data.T[0]
 
