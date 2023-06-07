@@ -1,3 +1,8 @@
+import os
+
+# some useful python package
+import numpy as np
+import matplotlib.pyplot as plt
 
 # import qibo's packages
 import qibo
@@ -7,16 +12,29 @@ from qibo.models import Circuit
 from qibo.models import error_mitigation
 from qibo.symbols import Z
 
-# some useful python package
-import numpy as np
-import matplotlib.pyplot as plt
-
 # numpy backend is enough for a 1-qubit model
-qibo.set_backend('numpy')
+# qibo.set_backend('qibolab', platform='tii1q_b1')
 
 class vqregressor:
 
-  def __init__(self, data, labels, layers, nqubits=1, backend=None, noise_model=None, nshots=1000, expectation_from_samples=True, obs_hardware=False, mitigation={'step':False,'final':False,'method':None}, mit_kwargs={}, scaler=lambda x: x):
+  def __init__(
+    self, 
+    data, 
+    labels, 
+    layers, 
+    example,
+    nqubits=1, 
+    backend=None, 
+    noise_model=None, 
+    nshots=1000, 
+    expectation_from_samples=True,
+    obs_hardware=False, 
+    mitigation={
+      'step':False,
+      'final':False,
+      'method':None}, 
+    mit_kwargs={}, 
+    scaler=lambda x: x,):
     """Class constructor."""
     # some general features of the QML model
     self.nqubits = nqubits
@@ -32,11 +50,14 @@ class vqregressor:
     self.mitigation = mitigation
     self.mit_kwargs = mit_kwargs
     self.scaler = scaler
+    self.example = example
 
     if backend is None:  # pragma: no cover
       from qibo.backends import GlobalBackend
 
       self.backend = GlobalBackend()
+    if mitigation['method'] is not None:
+      self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
 
     # initialize the circuit and extract the number of parameters
     self.circuit = self.ansatz(nqubits, layers)
@@ -44,13 +65,12 @@ class vqregressor:
     # get the number of parameters
     self.nparams = (nqubits * layers * 4) - 2
     # set the initial value of the variational parameters
-    self.params = np.random.randn(self.nparams) 
+    np.random.seed(1234)
+    self.params = np.random.randn(self.nparams)
+    print('Initial guess:', self.params)
+
     # scaling factor for custom parameter shift rule
     self.scale_factors = np.ones(self.nparams)
-
-    if mitigation['method'] is not None:
-      self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
-      self.mit_params = self.get_fit()
 
 # ---------------------------- ANSATZ ------------------------------------------
 
@@ -101,8 +121,8 @@ class vqregressor:
 
 
   def set_parameters(self, new_params):
-        """Function which sets the new parameters into the circuit"""
-        self.params = new_params
+    """Function which sets the new parameters into the circuit"""
+    self.params = new_params
 
   
   def get_parameters(self):
@@ -142,48 +162,22 @@ class vqregressor:
     if self.obs_hardware:
         obs = np.sqrt(abs(obs))
     return obs
-  
-  def one_prediction_readout(self, x):
-    """This function calculates one prediction with fixed x and readout mitigation."""
-    self.inject_data(x)
-    circuit, observable = self.epx_value()
-    if self.noise_model != None:
-      circuit = self.noise_model.apply(circuit)
-    if self.exp_from_samples:
-      result = self.backend.execute_circuit(circuit, nshots=self.nshots)
-      readout_args = self.mit_kwargs['readout']
-      if readout_args != {}:
-        result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
-      obs = result.expectation_from_samples(observable)
-    else:
-      obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
-    if self.obs_hardware:
-        obs = np.sqrt(abs(obs))
-    return obs
-  
-  def get_fit(self):
-    mean_params = []
-    for k in range(4):
-      self.circuit.set_parameters(np.random.uniform(-np.pi,np.pi,int(self.nparams/2)))
-      circuit, observable = self.epx_value()
-      params = self.mitigation['method'](
-        circuit=circuit,
-        observable=observable,
-        noise_model=self.noise_model,
-        backend=self.backend,
-        nshots=self.nshots,
-        full_output=True,
-        **self.mit_kwargs
-      )[2]
-      print(params)
-      mean_params.append(params)
-    mean_params = np.mean(mean_params,axis=0)
-    return mean_params
+
 
   def one_mitigated_prediction(self, x):
     """This function calculates one mitigated prediction with fixed x."""
-    obs_noisy = self.one_prediction_readout(x)
-    obs = self.mit_params[0]*obs_noisy + self.mit_params[1]
+    self.inject_data(x)
+    circuit, observable = self.epx_value()
+    obs = self.mitigation['method'](
+      circuit=circuit,
+      observable=observable,
+      noise_model=self.noise_model,
+      backend=self.backend,
+      nshots=self.nshots,
+      **self.mit_kwargs
+    )
+    if self.obs_hardware:
+      obs = np.sqrt(abs(obs))
     return obs
 
 
@@ -292,7 +286,6 @@ class vqregressor:
     beta_1=0.85,
     beta_2=0.99,
     epsilon=1e-8,
-    lamb = 0
   ):
     """
     Implementation of the Adam optimizer: during a run of this function parameters are updated.
@@ -316,9 +309,9 @@ class vqregressor:
     v = beta_2 * v + (1 - beta_2) * grads * grads
     mhat = m / (1.0 - beta_1 ** (iteration + 1))
     vhat = v / (1.0 - beta_2 ** (iteration + 1))
-    self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon) - lamb*self.params
+    self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
 
-    return m, v, loss
+    return m, v, loss, grads
 
 
   def data_loader(self, batchsize):
@@ -346,7 +339,6 @@ class vqregressor:
     restart_from_epoch=None, 
     method='Adam',
     J_treshold = 1e-5,
-    epoch_CDR = 10,
     live_plotting=True):
 
     """
@@ -369,15 +361,27 @@ class vqregressor:
         print('This method does not exist. Please select one of the following: Adam, Standard.')
       )
 
+    cache_dir = f"{self.example}/cache"
+
+    # creating folder where to save params during training
+    if not os.path.exists(f"{cache_dir}/params_history"):
+      os.makedirs(f"{cache_dir}/params_history")
+
     # resuming old training
     if restart_from_epoch is not None:
-      resume_params = np.load(f"results/params_psr/params_epoch_{restart_from_epoch}.npy")
+      print(f"Resuming parameters from epoch {restart_from_epoch}")
+      resume_params = np.load(f"{cache_dir}/params_history/params_epoch_{restart_from_epoch}.npy")
       self.set_parameters(resume_params)
     else:
       restart_from_epoch = 0
 
+    if restart_from_epoch is None:
+      restart = 0
+    else:
+      restart = restart_from_epoch
+
     # we track the loss history
-    loss_history = []
+    loss_history, grad_history = [], []
 
     # useful if we use adam optimization
     if(method == 'Adam'):
@@ -386,9 +390,6 @@ class vqregressor:
 
     # cycle over the epochs
     for epoch in range(epochs):
-
-      if self.mitigation['step'] is True and epoch%epoch_CDR==0 and epoch != 0:   
-        self.mit_params = self.get_fit()
       
       iteration = 0
       
@@ -408,15 +409,16 @@ class vqregressor:
 
         # update parameters using the chosen method
         if(method=='Adam'):
-          m, v, loss = self.apply_adam(
+          m, v, loss, grads = self.apply_adam(
               learning_rate, m, v, data, labels, iteration
           )
         elif(method=='Standard'):
-          dloss, loss = self.evaluate_loss_gradients()
+          grads, loss = self.evaluate_loss_gradients()
           self.params -= learning_rate * dloss
 
+        grad_history.append(grads)
         loss_history.append(loss)
-
+        
         # track the training
         print(
             "Iteration ",
@@ -427,6 +429,10 @@ class vqregressor:
             loss,
         )
 
+        np.save(arr=self.params, file=f"{cache_dir}/params_history/params_epoch_{epoch + restart + 1}")
+        np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history")        
+        np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history")        
+        
         if live_plotting:
           self.show_predictions(f'Live_predictions', save=True)
     
