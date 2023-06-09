@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import scipy.stats, json
 import argparse, random
 from qibo.noise import NoiseModel, DepolarizingError
-from qibo import gates
+from qibo import gates, set_backend
 
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
 
@@ -25,6 +25,14 @@ parser.add_argument(
     type=str
 )
 
+parser.add_argument(
+    "--platform",
+    default="tii1q_b1",
+    help="Platform on which we perform predictions.",
+    type=str
+)
+
+
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
 def main(args):
@@ -33,26 +41,36 @@ def main(args):
     with open(conf_file, 'r') as f:
         conf = json.load(f)
 
+    platform = conf['platform']
+    if platform == 'sim':
+        set_backend('numpy')
+    else:
+        set_backend('qibolab', platform=platform)
+
     # load best parameters
     if args.best_params_path is not None:
         best_params = np.load(args.best_params_path)
     else:
         best_params = np.load(f"{args.example}/best_params_{conf['optimizer']}.npy")
-        
+
     # define dataset cardinality and number of executions
-    ndata = 99
-    nruns = 100
+    ndata = 30
+    nruns = 30
 
     data = np.linspace(-1, 1, ndata)
     scaler = lambda x: x
     if conf['function'] == 'sinus':
         labels = np.sin(2*data)
+    elif conf['function'] == 'hdw_target':
+        labels = np.sin(2*data) - 0.6*np.cos(4*data)
+        labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
     elif conf['function'] == 'gamma':
         labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
     elif conf['function'] == 'gluon':
         scaler = lambda x: np.log(x)
         parton = conf['parton']
         data = np.loadtxt(f'gluon/data/{parton}.dat')
+        idx = np.sort(random.sample(range(len(data)), ndata))
         labels = data.T[1]
         data = data.T[0]
 
@@ -69,7 +87,7 @@ def main(args):
         'vnCDR': {'n_training_samples':10, 'noise_levels':np.arange(3), 'insertion_gate':'RX'},
         None: {}
     }
-    
+
     # initialize vqr with data and best parameters
     VQR = vqregressor(
         layers=conf['nlayers'],
@@ -114,6 +132,12 @@ def main(args):
     plt.legend()
     plt.savefig('stat-on-result.png')
     plt.show()
+
+
+    # TO DO: ADD FUNCTION WHICH CLASSIFIES THE TRAINING
+
+    np.save(arr=means, file=f'{args.example}/means_{platform}')
+    np.save(arr=stds, file=f'{args.example}/stds_{platform}')
 
 # ---------------------- EXECUTE MAIN ------------------------------------------
 
