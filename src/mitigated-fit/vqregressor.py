@@ -431,8 +431,19 @@ class vqregressor:
                     arr=self.params,
                     file=f"{cache_dir}/params_history/params_epoch_{epoch + restart + 1}",
                 )
-                np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history")
-                np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history")
+                name = ""
+                if self.noise_model is not None:
+                    name += "_noisy"
+                if self.mitigation['method'] is not None:
+                    name += f"_{self.mitigation['method']}"
+                    if self.mitigation['step']:
+                        name += "-step"
+                    if self.mitigation['final']:
+                        name += "-final"
+                    if self.mitigation['readout']:
+                        name += f"-self.mitigation['readout']"
+                np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{name}")
+                np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{name}")
 
                 if live_plotting:
                     self.show_predictions(f"Live_predictions", save=True)
