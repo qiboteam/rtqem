@@ -53,11 +53,11 @@ def main(args):
     if args.best_params_path is not None:
         best_params = np.load(args.best_params_path)
     else:
-        best_params = np.load(f"{args.example}/best_params_{conf['optimizer']}.npy")
+        best_params = np.load(f"{args.example}/cache/best_params_{conf['optimizer']}.npy")
 
     # define dataset cardinality and number of executions
-    ndata = 30
-    nruns = 30
+    ndata = 50
+    nruns = 50
 
     data = np.linspace(-1, 1, ndata)
     scaler = lambda x: x
@@ -72,6 +72,7 @@ def main(args):
         parton = conf["parton"]
         data = np.loadtxt(f"gluon/data/{parton}.dat")
         idx = np.sort(random.sample(range(len(data)), ndata))
+        data = data[idx]
         labels = data.T[1]
         data = data.T[0]
 
@@ -98,6 +99,7 @@ def main(args):
         layers=conf["nlayers"],
         data=data,
         labels=labels,
+        example=args.example,
         nshots=conf["nshots"],
         expectation_from_samples=conf["expectation_from_samples"],
         noise_model=noise,

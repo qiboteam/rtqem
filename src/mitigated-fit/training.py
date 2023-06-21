@@ -59,7 +59,7 @@ if conf["qibolab"]:
     backend = construct_backend("qibolab", conf["platform"])
 else:
     backend = construct_backend("numpy")
-
+    
 readout = {}
 if conf["mitigation"]["readout"] is not None:
     if conf["mitigation"]["readout"] == "calibration_matrix":
