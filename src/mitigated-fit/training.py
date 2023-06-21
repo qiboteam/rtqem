@@ -1,25 +1,19 @@
 # some useful python package
+import argparse
+import json
+import os
+import random
+import time
+
 import numpy as np
-import time, os
-import scipy.stats, argparse, json, random
-from vqregressor import vqregressor
-from qibo.noise import NoiseModel, DepolarizingError
-<<<<<<< HEAD
-<<<<<<< HEAD
+import scipy.stats
 from qibo import gates
-from savedata_utils import get_training_type
-=======
-=======
->>>>>>> 123516b985c367453f9729cbbd3a6d96367ecc3a
-from qibo import gates, set_backend
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
-from uniplot import plot
-<<<<<<< HEAD
->>>>>>> main
-=======
+from qibo.noise import DepolarizingError, NoiseModel
 from savedata_utils import get_training_type
->>>>>>> 123516b985c367453f9729cbbd3a6d96367ecc3a
+from uniplot import plot
+from vqregressor import vqregressor
 
 parser = argparse.ArgumentParser(description='Training the vqregressor')
 parser.add_argument('example')
