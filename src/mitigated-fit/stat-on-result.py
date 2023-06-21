@@ -145,6 +145,18 @@ def main(args):
     plt.savefig("stat-on-result.png")
     plt.show()
 
+    loss_history = np.load(f"{conf['function']}/cache/loss_history.npy")
+    grad_history = np.load(f"{conf['function']}/cache/grad_history.npy")
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    axs[0].plot(loss_history)
+    axs[1].plot(np.sqrt((grad_history*grad_history).sum(-1)))
+    plt.rcParams['text.usetex'] = True
+    axs[0].set_xlabel('Epochs')
+    axs[0].set_ylabel("Loss")
+    axs[1].set_xlabel('Epochs')
+    axs[1].set_ylabel(r'$\|Grad\|$')
+    plt.show()
+    
     # TO DO: ADD FUNCTION WHICH CLASSIFIES THE TRAINING
 
     np.save(arr=means, file=f"{args.example}/means_{platform}")
