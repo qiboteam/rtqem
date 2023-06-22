@@ -57,8 +57,6 @@ class vqregressor:
             from qibo.backends import GlobalBackend
 
             self.backend = GlobalBackend()
-        if mitigation["method"] is not None:
-            self.mitigation["method"] = getattr(error_mitigation, mitigation["method"])
 
         # initialize the circuit and extract the number of parameters
         self.circuit = self.ansatz(nqubits, layers)
@@ -72,6 +70,10 @@ class vqregressor:
 
         # scaling factor for custom parameter shift rule
         self.scale_factors = np.ones(self.nparams)
+
+        if mitigation['method'] is not None:
+            self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
+            self.mit_params = self.get_fit()
 
     # ---------------------------- ANSATZ ------------------------------------------
 
@@ -143,11 +145,11 @@ class vqregressor:
             circuit.add(gates.M(*range(self.nqubits)))
             observable = np.zeros((2**self.nqubits, 2**self.nqubits))
             observable[0, 0] = 1
-            observable = Hamiltonian(self.nqubits, observable)
+            observable = Hamiltonian(self.nqubits, observable, backend=self.backend)
         else:
             circuit.add(gates.M(*range(self.nqubits)))
             observable = SymbolicHamiltonian(
-                np.prod([Z(i) for i in range(self.nqubits)])
+                np.prod([Z(i) for i in range(self.nqubits)]), backend=self.backend
             )
 
         return circuit, observable
@@ -170,20 +172,48 @@ class vqregressor:
             obs = np.sqrt(abs(obs))
         return obs
 
-    def one_mitigated_prediction(self, x):
-        """This function calculates one mitigated prediction with fixed x."""
+    def one_prediction_readout(self, x):
+        """This function calculates one prediction with fixed x and readout mitigation."""
         self.inject_data(x)
         circuit, observable = self.epx_value()
-        obs = self.mitigation["method"](
-            circuit=circuit,
-            observable=observable,
-            noise_model=self.noise_model,
-            backend=self.backend,
-            nshots=self.nshots,
-            **self.mit_kwargs,
-        )
+        if self.noise_model != None:
+            circuit = self.noise_model.apply(circuit)
+        if self.exp_from_samples:
+            result = self.backend.execute_circuit(circuit, nshots=self.nshots)
+        readout_args = self.mit_kwargs['readout']
+        if readout_args != {}:
+            result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
+            obs = result.expectation_from_samples(observable)
+        else:
+            obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
         if self.obs_hardware:
             obs = np.sqrt(abs(obs))
+        return obs
+    
+    def get_fit(self):
+        mean_params = []
+        mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples','readout']}
+        for _ in range(self.mit_kwargs['N_mean']):
+            self.circuit.set_parameters(np.random.uniform(-np.pi,np.pi,int(self.nparams/2)))
+            circuit, observable = self.epx_value()
+            params = self.mitigation['method'](
+                circuit=circuit,
+                observable=observable,
+                noise_model=self.noise_model,
+                backend=self.backend,
+                nshots=self.nshots,
+                full_output=True,
+                **mit_kwargs
+            )[2]
+            print(params)
+            mean_params.append(params)
+        mean_params = np.mean(mean_params,axis=0)
+        return mean_params
+
+    def one_mitigated_prediction(self, x):
+        """This function calculates one mitigated prediction with fixed x."""
+        obs_noisy = self.one_prediction_readout(x)
+        obs = self.mit_params[0]*obs_noisy + self.mit_params[1]
         return obs
 
     def step_prediction(self, x):
@@ -399,8 +429,10 @@ class vqregressor:
 
         # cycle over the epochs
         for epoch in range(epochs):
-            
-            global n_calls
+
+            if self.mitigation['step'] is True and epoch%self.mit_kwargs['N_update']==0 and epoch != 0:   
+                self.mit_params = self.get_fit()
+
             iteration = 0
 
             # stop the training if the target loss is reached
