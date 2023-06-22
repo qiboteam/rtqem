@@ -84,7 +84,7 @@ if conf["mitigation"]["readout"] is not None:
 
 mit_kwargs = {
     "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-    "CDR": {"n_training_samples": 10, "readout": readout},
+    "CDR": {"n_training_samples": 10, "readout": readout, "N_update": 10, "N_mean": 4},
     "vnCDR": {
         "n_training_samples": 10,
         "noise_levels": np.arange(3),
