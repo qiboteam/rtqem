@@ -1,13 +1,19 @@
 # some useful python package
+import argparse
+import json
+import os
+import random
+import time
+
 import numpy as np
-import time, os
-import scipy.stats, argparse, json, random
-from vqregressor import vqregressor
-from qibo.noise import NoiseModel, DepolarizingError
-from qibo import gates, set_backend
+import scipy.stats
+from qibo import gates
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
+from qibo.noise import DepolarizingError, NoiseModel
+from savedata_utils import get_training_type
 from uniplot import plot
+from vqregressor import vqregressor
 
 parser = argparse.ArgumentParser(description="Training the vqregressor")
 parser.add_argument("example")
@@ -29,6 +35,9 @@ with open("{}/{}.conf".format(args.example, args.example), "r") as f:
 nqubits = conf["nqubits"]
 layers = conf["nlayers"]
 ndata = conf["ndata"]
+
+# get string to identify the training type
+training_type = get_training_type(conf)
 
 # random data
 data = np.linspace(-1, 1, ndata)
@@ -126,5 +135,5 @@ print(f"Execution time required: ", (end - start))
 # best_params = np.load('gluon/best_params_Adam.npy',allow_pickle=True)
 # VQR.params = best_params
 
-VQR.show_predictions(f"{cache_dir}/predictions_{conf['optimizer']}", save=True)
-np.save(f"{cache_dir}/best_params_{conf['optimizer']}", VQR.params)
+VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
+np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.params)
