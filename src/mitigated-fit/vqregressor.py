@@ -1,4 +1,4 @@
-import os
+import os, time
 
 # some useful python package
 import numpy as np
@@ -12,9 +12,12 @@ from qibo.models import Circuit
 from qibo.models import error_mitigation
 from qibo.symbols import Z
 
+from multiprocessing import Pool, set_start_method, Process, Queue
+
+set_start_method('fork')
+
 # numpy backend is enough for a 1-qubit model
 # qibo.set_backend('qibolab', platform='tii1q_b1')
-
 
 class vqregressor:
     def __init__(
@@ -231,7 +234,7 @@ class vqregressor:
         to the variational parameters of the circuit are performed via parameter-shift
         rule (PSR)."""
         dcirc = np.zeros(self.nparams)
-
+        
         for par in range(self.nparams):
             # read qibo documentation for more information about this PSR implementation
             dcirc[par] = self.parameter_shift(par, x)
@@ -259,13 +262,18 @@ class vqregressor:
         # cycle on all the sample
         for x, y in zip(data, labels):
             # calculate prediction
+            t = time.time()
             prediction = self.step_prediction(x)
+            print(f"-> pred in {time.time()-t:.2f} s")
             # derivative of E[O] with respect all thetas
+            t = time.time()
             dcirc = self.circuit_derivative(x)
+            print(f"-> grad in {time.time()-t:.2f} s")
             # calculate loss and dloss
             mse = prediction - y
             loss += mse**2
             dloss += 2 * mse * dcirc
+        
 
         return dloss, loss / len(data)
 
@@ -299,8 +307,10 @@ class vqregressor:
         Returns: np.float new values of momentum and velocity
         """
 
+        t = time.time()
         grads, loss = self.evaluate_loss_gradients(data, labels)
-
+        print(f"get loss/gradients in {time.time()-t:.2f} s")
+        
         m = beta_1 * m + (1 - beta_1) * grads
         v = beta_2 * v + (1 - beta_2) * grads * grads
         mhat = m / (1.0 - beta_1 ** (iteration + 1))
@@ -389,6 +399,8 @@ class vqregressor:
 
         # cycle over the epochs
         for epoch in range(epochs):
+            
+            global n_calls
             iteration = 0
 
             # stop the training if the target loss is reached
@@ -413,7 +425,7 @@ class vqregressor:
                 elif method == "Standard":
                     grads, loss = self.evaluate_loss_gradients()
                     self.params -= learning_rate * dloss
-
+                
                 grad_history.append(grads)
                 loss_history.append(loss)
 
@@ -427,26 +439,28 @@ class vqregressor:
                     loss,
                 )
 
-                np.save(
-                    arr=self.params,
-                    file=f"{cache_dir}/params_history/params_epoch_{epoch + restart + 1}",
-                )
-                name = ""
-                if self.noise_model is not None:
-                    name += "_noisy"
-                if self.mitigation['method'] is not None:
-                    name += f"_{self.mitigation['method']}"
-                    if self.mitigation['step']:
-                        name += "-step"
-                    if self.mitigation['final']:
-                        name += "-final"
-                    if self.mitigation['readout']:
-                        name += f"-self.mitigation['readout']"
-                np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{name}")
-                np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{name}")
+            if live_plotting:
+                self.show_predictions(f"Live_predictions", save=True)
 
-                if live_plotting:
-                    self.show_predictions(f"Live_predictions", save=True)
+            np.save(
+                arr=self.params,
+                file=f"{cache_dir}/params_history/params_epoch_{epoch + restart + 1}",
+            )
+
+            
+        name = ""
+        if self.noise_model is not None:
+            name += "noisy"
+        if self.mitigation['method'] is not None:
+            name += f"_{self.mitigation['method'].__name__}"
+            if self.mitigation['step']:
+                name += "-step"
+            if self.mitigation['final']:
+                name += "-final"
+            if self.mitigation['readout']:
+                name += f"-readout"
+        np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{name}")
+        np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{name}")
 
         return loss_history
 

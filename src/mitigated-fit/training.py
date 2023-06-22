@@ -58,7 +58,8 @@ else:
 if conf["qibolab"]:
     backend = construct_backend("qibolab", conf["platform"])
 else:
-    backend = construct_backend("numpy")
+    backend = construct_backend("qibojit", platform="numba")
+    #backend = construct_backend("numpy")
     
 readout = {}
 if conf["mitigation"]["readout"] is not None:
