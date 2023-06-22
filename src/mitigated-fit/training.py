@@ -37,7 +37,7 @@ layers = conf["nlayers"]
 ndata = conf["ndata"]
 
 # get string to identify the training type
-training_type = get_training_type(conf)
+training_type = get_training_type(conf["mitigation"])
 
 # random data
 data = np.linspace(-1, 1, ndata)

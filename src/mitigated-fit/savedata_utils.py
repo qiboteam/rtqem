@@ -1,11 +1,9 @@
-def get_training_type(conf_dictionary):
+def get_training_type(conf_mitigation):
     """
     Defines the training type according to the experiment configuration.
     
     Returns: a string for customizing the data saving.
     """
-
-    conf_mitigation = conf_dictionary["mitigation"]
 
     if conf_mitigation["method"] is None:
         if conf_mitigation["readout"] is None:

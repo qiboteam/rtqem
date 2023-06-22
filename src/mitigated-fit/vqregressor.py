@@ -12,9 +12,7 @@ from qibo.models import Circuit
 from qibo.models import error_mitigation
 from qibo.symbols import Z
 
-from multiprocessing import Pool, set_start_method, Process, Queue
-
-set_start_method('fork')
+from savedata_utils import get_training_type
 
 # numpy backend is enough for a 1-qubit model
 # qibo.set_backend('qibolab', platform='tii1q_b1')
@@ -205,7 +203,6 @@ class vqregressor:
                 full_output=True,
                 **mit_kwargs
             )[2]
-            print(params)
             mean_params.append(params)
         mean_params = np.mean(mean_params,axis=0)
         return mean_params
@@ -292,13 +289,9 @@ class vqregressor:
         # cycle on all the sample
         for x, y in zip(data, labels):
             # calculate prediction
-            t = time.time()
             prediction = self.step_prediction(x)
-            print(f"-> pred in {time.time()-t:.2f} s")
             # derivative of E[O] with respect all thetas
-            t = time.time()
             dcirc = self.circuit_derivative(x)
-            print(f"-> grad in {time.time()-t:.2f} s")
             # calculate loss and dloss
             mse = prediction - y
             loss += mse**2
@@ -337,9 +330,7 @@ class vqregressor:
         Returns: np.float new values of momentum and velocity
         """
 
-        t = time.time()
         grads, loss = self.evaluate_loss_gradients(data, labels)
-        print(f"get loss/gradients in {time.time()-t:.2f} s")
         
         m = beta_1 * m + (1 - beta_1) * grads
         v = beta_2 * v + (1 - beta_2) * grads * grads
@@ -491,8 +482,9 @@ class vqregressor:
                 name += "-final"
             if self.mitigation['readout']:
                 name += f"-readout"
-        np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{name}")
-        np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{name}")
+        train_type = get_training_type(self.mitigation)
+        np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{train_type}")
+        np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{train_type}")
 
         return loss_history
 
