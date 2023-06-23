@@ -14,6 +14,8 @@ from qibo.symbols import Z
 
 from savedata_utils import get_training_type
 
+from bp_utils import bound_pred, bound_grad
+
 # numpy backend is enough for a 1-qubit model
 # qibo.set_backend('qibolab', platform='tii1q_b1')
 
@@ -307,6 +309,10 @@ class vqregressor:
         """This function calculates the derivative of the loss function with respect
         to the variational parameters of the model."""
 
+        params = self.noise_model.errors[gates.I][0][1].options
+        probs = [params[k][1] for k in range(3)]
+        bound_grads = bound_grad(probs, self.layers, self.nqubits)
+
         if data is None:
             data = self.data
 
@@ -316,6 +322,7 @@ class vqregressor:
         # we need the derivative of the loss
         # nparams-long vector
         dloss = np.zeros(self.nparams)
+        dloss_bound = 0
         # we also keep track of the loss value
         loss = 0
 
@@ -328,10 +335,11 @@ class vqregressor:
             # calculate loss and dloss
             mse = prediction - y
             loss += mse**2
-            dloss += 2 * mse * dcirc
+            #dloss += 2 * mse * dcirc
+            #dloss_bound += 2 * abs(mse) * bound_grads
         
 
-        return dloss, loss / len(data)
+        return dloss, loss / len(data)#, dloss_bound
 
     # ---------------------- Update parameters if we use Adam ----------------------
 
@@ -444,7 +452,7 @@ class vqregressor:
             restart = restart_from_epoch
 
         # we track the loss history
-        loss_history, grad_history = [], []
+        loss_history, grad_history, grad_bound_history = [], [], []
 
         # useful if we use adam optimization
         if method == "Adam":
@@ -518,6 +526,7 @@ class vqregressor:
         train_type = get_training_type(self.mitigation)
         np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{train_type}")
         np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{train_type}")
+        #np.save(arr=np.asarray(grad_bound_history), file=f"{cache_dir}/grad_bound_history_{train_type}")
 
         return loss_history
 

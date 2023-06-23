@@ -19,6 +19,8 @@ from qibo.backends import construct_backend
 from prepare_data import prepare_data
 from vqregressor import vqregressor
 
+from bp_utils import bound_pred
+
 plt.style.use('science')
 
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
@@ -53,7 +55,7 @@ parser.add_argument(
 ndata = 50
 nruns = 10
 
-def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, color, label):
+def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, grad_bound_history, color, label):
 
     global ndata, nruns 
     
@@ -71,7 +73,13 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history
 
     loss_grad_axes[0].plot(loss_history, c=color, lw=2, alpha=0.7, label=label)
     loss_grad_axes[1].plot(
-        np.sqrt((grad_history*grad_history).sum(-1)), 
+        np.max(np.sqrt((grad_history*grad_history)),axis=-1), 
+        c=color,
+        lw=2,
+        alpha=0.7,
+        label=label)
+    loss_grad_axes[1].plot(
+        grad_bound_history, 
         c=color,
         lw=2,
         alpha=0.7,
@@ -212,6 +220,8 @@ def main(args):
 
         loss_history = np.load(f"{args.example}/cache/loss_history_{setting}.npy")
         grad_history = np.load(f"{args.example}/cache/grad_history_{setting}.npy")
+        bound_grads = bound_grad(probs, self.layers, self.nqubits)
+        grad_bound_history = [2*bound_grads*ndata]*ndata #np.load(f"{args.example}/cache/grad_bound_history_{setting}.npy")
 
         plot(
             fit_axis,
@@ -221,6 +231,7 @@ def main(args):
             stds,
             loss_history,
             grad_history,
+            grad_bound_history,
             color,
             label
         )
