@@ -1,12 +1,19 @@
+import argparse
+import random
+import os
+import json
+
 import numpy as np
-from vqregressor import vqregressor
 import matplotlib.pyplot as plt
-import scipy.stats, json, os
-import argparse, random
+import scipy.stats
+from tqdm import tqdm 
+
 from qibo.noise import NoiseModel, DepolarizingError
-from qibo import gates, set_backend
+from qibo import gates
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.backends import construct_backend
+
+from vqregressor import vqregressor
 
 
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
@@ -39,7 +46,7 @@ parser.add_argument(
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
 ndata = 50
-nruns = 50
+nruns = 20
 
 def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, color):
 
@@ -74,8 +81,8 @@ def main(args):
     if conf["qibolab"]:
         backend = construct_backend("qibolab", conf["platform"])
     else:
-        backend = construct_backend("qibojit", platform="numba")
-        #backend = construct_backend("numpy")
+        #backend = construct_backend("qibojit", platform="numba")
+        backend = construct_backend("numpy")
 
     # define dataset cardinality and number of executions
     global ndata, nruns
@@ -130,7 +137,7 @@ def main(args):
     }   
 
     # plot results
-    fit_fig, fit_axis = plt.subplots(figsize=(8, 6))
+    fit_fig, fit_axis = plt.subplots(figsize=(10, 6))
     fit_axis.plot(data, labels, c="black", lw=2, alpha=0.8, label="Target function")
     fit_axis.set_title("Statistics on results")
     fit_axis.set_xlabel("x")
@@ -149,15 +156,15 @@ def main(args):
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
             mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
-            colors.append('orange')
+            colors.append('blue')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
             mitigation_settings.append({"step":True,"final":True,"method":"CDR","readout":"calibration_matrix"})
-            colors.append('blue')
+            colors.append('red')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_no_final_yes" in f:
             settings.append("full_mitigation_step_no_final_yes")
             mitigation_settings.append({"step":False,"final":True,"method":"CDR","readout":"calibration_matrix"})
-            colors.append('green')
+            colors.append('orange')
 
 
     for setting, mitigation, color in zip(settings, mitigation_settings, colors):
@@ -183,7 +190,7 @@ def main(args):
 
         predictions = []
 
-        for _ in range(nruns):
+        for _ in tqdm(range(nruns)):
             predictions.append(VQR.predict_sample())
 
         predictions = np.asarray(predictions)
