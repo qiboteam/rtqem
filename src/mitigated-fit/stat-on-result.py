@@ -5,6 +5,9 @@ import json
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+import scienceplots
+
 import scipy.stats
 from tqdm import tqdm 
 
@@ -16,6 +19,7 @@ from qibo.backends import construct_backend
 from prepare_data import prepare_data
 from vqregressor import vqregressor
 
+plt.style.use('science')
 
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
 
@@ -49,22 +53,21 @@ parser.add_argument(
 ndata = 50
 nruns = 10
 
-def plot(fit_fig, fit_axis, loss_grad_fig, loss_grad_axes, data, means, stds, loss_history, grad_history, color, label):
+def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, color, label):
 
     global ndata, nruns 
     
     # plot results
-    fit_axis.plot(data, means, c=color, alpha=0.7, lw=2, label="Mean values")
+    fit_axis.plot(data, means, c=color, alpha=0.7, lw=2, label=label)
     fit_axis.fill_between(
         data,
         means - stds,
         means + stds,
         alpha=0.25,
         color=color,
-        label=label,
     )
-    fit_fig.legend(loc=1)
-    fit_fig.savefig('fits_benchmark.pdf')
+    #fit_fig.legend(loc=1, borderaxespad=3)
+    #fit_fig.savefig('fits_benchmark.pdf', bbox_inches='tight')
 
     loss_grad_axes[0].plot(loss_history, c=color, lw=2, alpha=0.7, label=label)
     loss_grad_axes[1].plot(
@@ -74,9 +77,8 @@ def plot(fit_fig, fit_axis, loss_grad_fig, loss_grad_axes, data, means, stds, lo
         alpha=0.7,
         label=label)
     
-    plt.tight_layout()
-    loss_grad_fig.legend(loc=1)
-    loss_grad_fig.savefig('gradients_analysis.pdf')
+    #loss_grad_fig.legend(loc=1, borderaxespad=3)
+    #loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
 
     
     
@@ -134,11 +136,12 @@ def main(args):
     }   
 
     # plot results
-    fit_fig , fit_axis = plt.subplots(figsize=(10, 6))
+    fit_fig , fit_axis = plt.subplots(1, 1, figsize=(10, 6))
     fit_axis.plot(data, labels, c="black", lw=2, alpha=0.8, label="Target function")
     fit_axis.set_title("Statistics on results")
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
+    #fit_fig.legend(loc=1, borderaxespad=3)
 
     loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(10,8))
     plt.rcParams['text.usetex'] = True
@@ -148,6 +151,7 @@ def main(args):
     loss_grad_axes[1].set_title(r'$\|Grad\|$ history')
     loss_grad_axes[1].set_xlabel('Epoch')
     loss_grad_axes[1].set_ylabel(r'$\|Grad\|$')
+    #loss_grad_fig.legend(loc=1, borderaxespad=3)
     
     files = os.listdir(f"{args.example}/cache/")
     settings, mitigation_settings, colors, labels = [], [], [], []
@@ -210,9 +214,7 @@ def main(args):
         grad_history = np.load(f"{args.example}/cache/grad_history_{setting}.npy")
 
         plot(
-            fit_fig,
             fit_axis,
-            loss_grad_fig,
             loss_grad_axes,
             data,
             means,
@@ -223,7 +225,10 @@ def main(args):
             label
         )
 
-        
+    fit_axis.legend(loc=1)
+    fit_fig.savefig('fits_benchmark.pdf', bbox_inches='tight')
+    loss_grad_axes[0].legend(loc=1)
+    loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
     
 
 
