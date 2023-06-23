@@ -2,17 +2,16 @@
 import argparse
 import json
 import os
-import random
 import time
 
 import numpy as np
-import scipy.stats
 from qibo import gates
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.noise import DepolarizingError, NoiseModel
 from savedata_utils import get_training_type
 from uniplot import plot
+from prepare_data import prepare_data
 from vqregressor import vqregressor
 
 parser = argparse.ArgumentParser(description="Training the vqregressor")
@@ -39,23 +38,8 @@ ndata = conf["ndata"]
 # get string to identify the training type
 training_type = get_training_type(conf["mitigation"])
 
-# random data
-data = np.linspace(-1, 1, ndata)
-scaler = lambda x: x
-# labeling them
-if conf["function"] == "sinus":
-    labels = np.sin(2 * data)
-elif conf["function"] == "hdw_target":
-    labels = np.exp(-data) * np.cos(3 * data) * 0.3
-elif conf["function"] == "gamma":
-    labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
-elif conf["function"] == "gluon":
-    scaler = lambda x: np.log(x)
-    parton = conf["parton"]
-    data = np.loadtxt(f"gluon/data/{parton}.dat")
-    idx = random.sample(range(len(data)), ndata)
-    labels = data.T[1][idx]
-    data = data.T[0][idx]
+# prepare data
+data, labels, scaler = prepare_data(conf["function"], show_sample=True)
 
 # noise model
 if conf["noise"]:
@@ -96,6 +80,7 @@ mit_kwargs = {
 }
 
 VQR = vqregressor(
+    nqubits=nqubits,
     layers=layers,
     data=data,
     labels=labels,

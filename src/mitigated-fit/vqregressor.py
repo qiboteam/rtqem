@@ -24,7 +24,7 @@ class vqregressor:
         labels,
         layers,
         example,
-        nqubits=1,
+        nqubits=1,  
         backend=None,
         noise_model=None,
         nshots=1000,
@@ -39,6 +39,14 @@ class vqregressor:
         self.nqubits = nqubits
         self.layers = layers
         self.data = data
+        # get data dimensionality
+        self.ndim = len(np.atleast_1d(data[0]))
+
+        if nqubits != self.ndim:
+            raise ValueError(
+                f"Please select a number of qubits equal to the data dimensionality, which is {self.ndim}"
+            )
+
         self.labels = labels
         self.ndata = len(labels)
         self.backend = backend
@@ -58,9 +66,10 @@ class vqregressor:
 
         # initialize the circuit and extract the number of parameters
         self.circuit = self.ansatz(nqubits, layers)
+        self.print_model()
 
         # get the number of parameters
-        self.nparams = (nqubits * layers * 4) - 2
+        self.nparams = (nqubits * layers * 4) - 2 * nqubits
         # set the initial value of the variational parameters
         np.random.seed(1234)
         self.params = np.random.randn(self.nparams)
@@ -73,28 +82,38 @@ class vqregressor:
             self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
             self.mit_params = self.get_fit()
 
+        
+
     # ---------------------------- ANSATZ ------------------------------------------
 
     def ansatz(self, nqubits, layers):
         """Here we implement the variational model ansatz."""
         c = Circuit(nqubits, density_matrix=True)
-        for q in range(nqubits):
-            for l in range(layers):
+
+        for l in range(layers):
+            for q in range(nqubits):
                 # decomposition of RY gate
                 c.add(
                     [
-                        gates.RX(q=q, theta=np.pi / 2, trainable=False),
+                        gates.RX(q=q, theta=np.pi/2, trainable=False),
                         gates.RZ(q=q, theta=0),
                         gates.RZ(q=q, theta=np.pi, trainable=False),
-                        gates.RX(q=q, theta=np.pi / 2, trainable=False),
+                        gates.RX(q=q, theta=np.pi/2, trainable=False),
                         gates.RZ(q=q, theta=np.pi, trainable=False),
                     ]
                 )
                 # add RZ if this is not the last layer
                 if l != self.layers - 1:
                     c.add(gates.RZ(q=q, theta=0))
+            
+            # add entangling layer between layers
+            if (l != self.layers - 1) and (self.nqubits > 1):
+                for q in range(0, nqubits-1, 1):
+                    c.add(gates.CNOT(q0=q, q1=q+1))
+                c.add(gates.CNOT(q0=nqubits-1, q1=0))
 
         return c
+    
 
     # --------------------------- RE-UPLOADING -------------------------------------
 
@@ -103,26 +122,40 @@ class vqregressor:
         params = []
         index = 0
 
-        for q in range(self.nqubits):
-            for l in range(self.layers):
+        # make it work also if x is 1d
+        x = np.atleast_1d(x)
+
+        for l in range(self.layers):
+            for q in range(self.nqubits):
                 # embed x
                 params.append(
-                    self.params[index] * self.scaler(x) + self.params[index + 1]
+                    self.params[index] * self.scaler(x[q]) + self.params[index + 1]
                 )
                 # update scale factors
 
                 # equal to x only when x is involved
-                self.scale_factors[index] = self.scaler(x)
+                self.scale_factors[index] = self.scaler(x[q])
 
                 # add RZ if this is not the last layer
                 if l != self.layers - 1:
-                    params.append(self.params[index + 2] * x + self.params[index + 3])
-                    self.scale_factors[index + 2] = x
+                    params.append(self.params[index + 2] * x[q] + self.params[index + 3])
+                    self.scale_factors[index + 2] = x[q]
                     # we have four parameters per layer
                     index += 4
 
         # update circuit's parameters
         self.circuit.set_parameters(params)
+
+    # --------------------------- PRINT MODEL SPECS --------------------------------
+
+    def print_model(self):
+        """Show circuit's specificities"""
+        print("Circuit ansatz")
+        print(self.circuit.draw())
+        print("Circuit's specs")
+        print(self.circuit.summary())
+
+    # ------------------------------ MODIFY PARAMS ---------------------------------
 
     def set_parameters(self, new_params):
         """Function which sets the new parameters into the circuit"""
@@ -531,13 +564,18 @@ class vqregressor:
         # calculate prediction
         predictions = self.predict_sample()
 
+        if self.ndim != 1:
+            x_0_array = self.data.T[0]
+        else:
+            x_0_array = self.data
+
         # draw the results
         plt.figure(figsize=(12, 8))
         plt.title(title)
         plt.xlabel("x")
         plt.ylabel("y")
         plt.scatter(
-            self.data,
+            x_0_array,
             self.labels,
             color="orange",
             alpha=0.6,
@@ -546,7 +584,7 @@ class vqregressor:
             marker="o",
         )
         plt.scatter(
-            self.data,
+            x_0_array,
             predictions,
             color="purple",
             alpha=0.6,
