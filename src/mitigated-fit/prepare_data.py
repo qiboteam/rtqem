@@ -1,6 +1,5 @@
 """ Generate data to be fitted """
 
-import argparse
 import json
 import random
 
@@ -16,7 +15,7 @@ def prepare_data(example:str, show_sample:bool=False):
         example: name of the target example
         show_sample: if True, the sampled data and labels are saved as sampled_data.png
     
-    Returns sampled_data and labels
+    Returns sampled_data, labels, scaler
     """
 
     with open("{}/{}.conf".format(example, example), "r") as f:
@@ -54,10 +53,9 @@ def prepare_data(example:str, show_sample:bool=False):
         for dim in range(ndim):
             contribute = np.cos(thetas[dim]*data.T[dim])**[dim+1] + ((-1)**dim)*thetas[dim]*data.T[dim]
             labels += contribute
-            
 
+    # print in case you want to have a look to the data     
     if show_sample:
-
         if ndim != 1:
             xarr = data.T[0]
         else:
@@ -72,3 +70,5 @@ def prepare_data(example:str, show_sample:bool=False):
     # saving data
     np.save(file=function+"/data.npy", arr=data)
     np.save(file=function+"/labels.npw", arr=labels)
+
+    return data, labels, scaler
