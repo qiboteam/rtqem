@@ -53,6 +53,8 @@ def prepare_data(example:str, show_sample:bool=False):
         for dim in range(ndim):
             contribute = np.cos(thetas[dim]*data.T[dim])**[dim+1] + ((-1)**dim)*thetas[dim]*data.T[dim]
             labels += contribute
+        
+        labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
 
     # print in case you want to have a look to the data     
     if show_sample:

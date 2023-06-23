@@ -106,7 +106,7 @@ class vqregressor:
                     c.add(gates.RZ(q=q, theta=0))
             
             # add entangling layer between layers
-            if l != self.layers - 1:
+            if (l != self.layers - 1) and (self.nqubits > 1):
                 for q in range(0, nqubits-1, 1):
                     c.add(gates.CNOT(q0=q, q1=q+1))
                 c.add(gates.CNOT(q0=nqubits-1, q1=0))
