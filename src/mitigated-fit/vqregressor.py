@@ -23,7 +23,7 @@ class vqregressor:
         labels,
         layers,
         example,
-        nqubits=1,
+        nqubits=1,  
         backend=None,
         noise_model=None,
         nshots=1000,
@@ -38,6 +38,14 @@ class vqregressor:
         self.nqubits = nqubits
         self.layers = layers
         self.data = data
+        # get data dimensionality
+        self.ndim = len(np.atleast_1d(data[0]))
+
+        if nqubits != self.ndim:
+            raise ValueError(
+                f"Please select a number of qubits equal to the data dimensionality, which is {self.ndim}"
+            )
+
         self.labels = labels
         self.ndata = len(labels)
         self.backend = backend
@@ -57,6 +65,7 @@ class vqregressor:
 
         # initialize the circuit and extract the number of parameters
         self.circuit = self.ansatz(nqubits, layers)
+        self.print_model()
 
         # get the number of parameters
         self.nparams = (nqubits * layers * 4) - 2
@@ -71,6 +80,8 @@ class vqregressor:
         if mitigation['method'] is not None:
             self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
             self.mit_params = self.get_fit()
+
+        
 
     # ---------------------------- ANSATZ ------------------------------------------
 
@@ -94,6 +105,14 @@ class vqregressor:
                     c.add(gates.RZ(q=q, theta=0))
 
         return c
+    
+
+    def print_model(self):
+        """Show circuit's specificities"""
+        print("Circuit ansatz")
+        print(self.circuit.draw())
+        print("Circuit's specs")
+        print(self.circuit.summary())
 
     # --------------------------- RE-UPLOADING -------------------------------------
 
@@ -102,11 +121,14 @@ class vqregressor:
         params = []
         index = 0
 
+        # make it work also if x is 1d
+        x = np.atleast_1d(x)
+
         for q in range(self.nqubits):
             for l in range(self.layers):
                 # embed x
                 params.append(
-                    self.params[index] * self.scaler(x) + self.params[index + 1]
+                    self.params[index] * self.scaler(x[q]) + self.params[index + 1]
                 )
                 # update scale factors
 
@@ -115,8 +137,8 @@ class vqregressor:
 
                 # add RZ if this is not the last layer
                 if l != self.layers - 1:
-                    params.append(self.params[index + 2] * x + self.params[index + 3])
-                    self.scale_factors[index + 2] = x
+                    params.append(self.params[index + 2] * x[q] + self.params[index + 3])
+                    self.scale_factors[index + 2] = x[q]
                     # we have four parameters per layer
                     index += 4
 
