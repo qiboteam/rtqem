@@ -44,8 +44,6 @@ nruns = 50
 def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, color):
 
     global ndata, nruns 
-
-    print(stds)
     
     # plot results
     fit_axis.plot(data, means, c=color, alpha=0.7, lw=2, label="Mean values")
@@ -121,7 +119,7 @@ def main(args):
 
     mit_kwargs = {
         "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-        "CDR": {"n_training_samples": 10, "readout": readout, "N_update": 10, "N_mean": 4},
+        "CDR": {"n_training_samples": 10, "readout": readout, "N_update": 1, "N_mean": 1},
         "vnCDR": {
             "n_training_samples": 10,
             "noise_levels": np.arange(3),
@@ -190,15 +188,10 @@ def main(args):
 
         predictions = np.asarray(predictions)
 
-        means = []
-        stds = []
+        means = predictions.mean(0)
+        stds = predictions.std(0)
 
-        for _ in range(ndata):
-            means.append(np.mean(predictions.T[_]))
-            stds.append(np.std(predictions.T[_]))
-
-        means = np.asarray(means)
-        stds = np.asarray(stds)
+        print(stds)
         
         # TO DO: ADD FUNCTION WHICH CLASSIFIES THE TRAINING
         np.save(arr=means, file=f"{args.example}/means_{platform}")
