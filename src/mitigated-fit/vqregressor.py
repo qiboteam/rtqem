@@ -94,6 +94,7 @@ class vqregressor:
 
         for l in range(layers):
             for q in range(nqubits):
+                c.add(gates.I(q))
                 # decomposition of RY gate
                 c.add(
                     [
@@ -113,6 +114,9 @@ class vqregressor:
                 for q in range(0, nqubits-1, 1):
                     c.add(gates.CNOT(q0=q, q1=q+1))
                 c.add(gates.CNOT(q0=nqubits-1, q1=0))
+
+        for q in range(nqubits):
+            c.add(gates.I(q))
 
         return c
     
@@ -238,6 +242,7 @@ class vqregressor:
                 full_output=True,
                 **mit_kwargs
             )[2]
+            print(params)
             mean_params.append(params)
         mean_params = np.mean(mean_params,axis=0)
         return mean_params
@@ -335,11 +340,11 @@ class vqregressor:
             # calculate loss and dloss
             mse = prediction - y
             loss += mse**2
-            #dloss += 2 * mse * dcirc
-            #dloss_bound += 2 * abs(mse) * bound_grads
+            dloss += 2 * mse * dcirc
+            dloss_bound += 2 * abs(mse) * bound_grads
         
 
-        return dloss, loss / len(data)#, dloss_bound
+        return dloss, loss / len(data), dloss_bound
 
     # ---------------------- Update parameters if we use Adam ----------------------
 
@@ -371,7 +376,7 @@ class vqregressor:
         Returns: np.float new values of momentum and velocity
         """
 
-        grads, loss = self.evaluate_loss_gradients(data, labels)
+        grads, loss, dloss_bound  = self.evaluate_loss_gradients(data, labels)
         
         m = beta_1 * m + (1 - beta_1) * grads
         v = beta_2 * v + (1 - beta_2) * grads * grads
@@ -379,7 +384,7 @@ class vqregressor:
         vhat = v / (1.0 - beta_2 ** (iteration + 1))
         self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
 
-        return m, v, loss, grads
+        return m, v, loss, grads, dloss_bound
 
     def data_loader(self, batchsize):
         """Returns a random batch of data with their labels"""
@@ -483,7 +488,7 @@ class vqregressor:
 
                 # update parameters using the chosen method
                 if method == "Adam":
-                    m, v, loss, grads = self.apply_adam(
+                    m, v, loss, grads, dloss_bound = self.apply_adam(
                         learning_rate, m, v, data, labels, iteration
                     )
                 elif method == "Standard":
@@ -492,6 +497,7 @@ class vqregressor:
                 
                 grad_history.append(grads)
                 loss_history.append(loss)
+                grad_bound_history.append(dloss_bound)
 
                 # track the training
                 print(
@@ -526,7 +532,7 @@ class vqregressor:
         train_type = get_training_type(self.mitigation)
         np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{train_type}")
         np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{train_type}")
-        #np.save(arr=np.asarray(grad_bound_history), file=f"{cache_dir}/grad_bound_history_{train_type}")
+        np.save(arr=np.asarray(grad_bound_history), file=f"{cache_dir}/grad_bound_history_{train_type}")
 
         return loss_history
 

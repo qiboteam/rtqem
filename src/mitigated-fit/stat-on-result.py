@@ -4,6 +4,7 @@ import os
 import json
 
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 import scienceplots
@@ -23,6 +24,11 @@ from bp_utils import bound_pred
 
 plt.style.use('science')
 
+mpl.rcParams.update({'font.size': 22})
+mpl.rcParams['xtick.major.size'] = 10
+mpl.rcParams['xtick.minor.size'] = 5
+mpl.rcParams['ytick.major.size'] = 10
+mpl.rcParams['ytick.minor.size'] = 5
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
 
 parser = argparse.ArgumentParser()
@@ -55,10 +61,14 @@ parser.add_argument(
 ndata = 50
 nruns = 10
 
-def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, grad_bound_history, color, label):
 
-    global ndata, nruns 
+def plot(i,fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, grad_bound_history, color, label):
+
+    global ndata, nruns
     
+    if len(np.shape(data)) != 1:
+        data = data.T[0]
+
     # plot results
     fit_axis.plot(data, means, c=color, alpha=0.7, lw=2, label=label)
     fit_axis.fill_between(
@@ -72,18 +82,22 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history
     #fit_fig.savefig('fits_benchmark.pdf', bbox_inches='tight')
 
     loss_grad_axes[0].plot(loss_history, c=color, lw=2, alpha=0.7, label=label)
+    loss_grad_axes[0].set_yscale('log')
     loss_grad_axes[1].plot(
         np.max(np.sqrt((grad_history*grad_history)),axis=-1), 
         c=color,
         lw=2,
         alpha=0.7,
         label=label)
-    loss_grad_axes[1].plot(
-        grad_bound_history, 
-        c=color,
-        lw=2,
-        alpha=0.7,
-        label=label)
+    if i == 0:
+        loss_grad_axes[1].plot(
+            grad_bound_history, 
+            '--',
+            c='green',
+            lw=2,
+            alpha=0.7,
+            label='BP bound')
+    i +=1
     
     #loss_grad_fig.legend(loc=1, borderaxespad=3)
     #loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
@@ -118,6 +132,11 @@ def main(args):
     else:
         noise = None
 
+    if conf["qibolab"]:
+        backend = construct_backend("qibolab", conf["platform"])
+    else:
+        backend = construct_backend("qibojit", platform="numba")
+
     readout = {}
     if conf["mitigation"]["readout"] is not None:
         if conf["mitigation"]["readout"] == "calibration_matrix":
@@ -144,17 +163,25 @@ def main(args):
     }   
 
     # plot results
+
+    if len(np.shape(data)) != 1:
+        data1 = data.T[0]
+    else:
+        data1 = data
+
     fit_fig , fit_axis = plt.subplots(1, 1, figsize=(10, 6))
-    fit_axis.plot(data, labels, c="black", lw=2, alpha=0.8, label="Target function")
+    fit_axis.plot(data1, labels, c="black", lw=2, alpha=0.8, label="Target function")
     fit_axis.set_title("Statistics on results")
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
     #fit_fig.legend(loc=1, borderaxespad=3)
 
-    loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(10,8))
+    pred_bound = np.load(f"{args.example}/cache/pred_bound.npy")
+    fit_axis.plot(data1, [pred_bound]*len(data), '--', c="green", alpha=0.7, lw=2, label="BP bound")
+
+    loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(10,12))
     plt.rcParams['text.usetex'] = True
     loss_grad_axes[0].set_title('Loss history')
-    loss_grad_axes[0].set_xlabel('Epoch')
     loss_grad_axes[0].set_ylabel("Loss")
     loss_grad_axes[1].set_title(r'$\|Grad\|$ history')
     loss_grad_axes[1].set_xlabel('Epoch')
@@ -169,18 +196,18 @@ def main(args):
             mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
             colors.append('blue')
             labels.append('No mitigation')
-        if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
-            settings.append("full_mitigation_step_yes_final_yes")
+        if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
+            settings.append("realtime_mitigation_step_yes_final_yes")
             mitigation_settings.append({"step":True,"final":True,"method":"CDR","readout":"calibration_matrix"})
             colors.append('red')
             labels.append('Full mitigation')
-        if f"best_params_{conf['optimizer']}_full_mitigation_step_no_final_yes" in f:
-            settings.append("full_mitigation_step_no_final_yes")
-            mitigation_settings.append({"step":False,"final":True,"method":"CDR","readout":"calibration_matrix"})
-            colors.append('orange')
-            labels.append('Mitigation on predictions')
+        # if f"best_params_{conf['optimizer']}_full_mitigation_step_no_final_yes" in f:
+        #     settings.append("full_mitigation_step_no_final_yes")
+        #     mitigation_settings.append({"step":False,"final":True,"method":"CDR","readout":"calibration_matrix"})
+        #     colors.append('orange')
+        #     labels.append('Mitigation on predictions')
 
-
+    i = 0
     for setting, mitigation, color, label in zip(settings, mitigation_settings, colors, labels):
 
         print(f"> Drawing '{setting}' plot in {color}.")
@@ -193,6 +220,8 @@ def main(args):
             data=data,
             labels=labels,
             example=args.example,
+            nqubits=conf["nqubits"],
+            backend=backend,
             nshots=conf["nshots"],
             expectation_from_samples=conf["expectation_from_samples"],
             noise_model=noise,
@@ -211,8 +240,7 @@ def main(args):
 
         means = predictions.mean(0)
         stds = predictions.std(0)
-
-        print(stds)
+        
         
         # TO DO: ADD FUNCTION WHICH CLASSIFIES THE TRAINING
         np.save(arr=means, file=f"{args.example}/means_{platform}")
@@ -220,10 +248,10 @@ def main(args):
 
         loss_history = np.load(f"{args.example}/cache/loss_history_{setting}.npy")
         grad_history = np.load(f"{args.example}/cache/grad_history_{setting}.npy")
-        bound_grads = bound_grad(probs, self.layers, self.nqubits)
-        grad_bound_history = [2*bound_grads*ndata]*ndata #np.load(f"{args.example}/cache/grad_bound_history_{setting}.npy")
+        grad_bound_history = np.load(f"{args.example}/cache/grad_bound_history_{setting}.npy")
 
         plot(
+            i,
             fit_axis,
             loss_grad_axes,
             data,
@@ -235,10 +263,14 @@ def main(args):
             color,
             label
         )
+        i += 1
 
+    fit_axis.minorticks_off()
+    loss_grad_axes[0].minorticks_off()
+    loss_grad_axes[1].minorticks_off()
     fit_axis.legend(loc=1)
     fit_fig.savefig('fits_benchmark.pdf', bbox_inches='tight')
-    loss_grad_axes[0].legend(loc=1)
+    loss_grad_axes[1].legend(loc=1)
     loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
     
 
@@ -249,7 +281,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.example[-1] == "/":
         args.example = args.example[:-1]
-    cache_dir = f"{args.example}/cache"
+    cache_dir = f"{args.example}/cache/"
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
     main(args)

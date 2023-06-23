@@ -8,11 +8,13 @@ import numpy as np
 from qibo import gates
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
-from qibo.noise import DepolarizingError, NoiseModel
+from qibo.noise import DepolarizingError, PauliError, NoiseModel
 from savedata_utils import get_training_type
 from uniplot import plot
 from prepare_data import prepare_data
 from vqregressor import vqregressor
+
+from bp_utils import bound_pred
 
 parser = argparse.ArgumentParser(description="Training the vqregressor")
 parser.add_argument("example")
@@ -44,7 +46,9 @@ data, labels, scaler = prepare_data(conf["function"], show_sample=True)
 # noise model
 if conf["noise"]:
     noise = NoiseModel()
-    noise.add(DepolarizingError(lam=0.1), gates.RX)
+    error = PauliError(list(zip(["X", "Y", "Z"], [0.03, 0.03, 0.03])))
+    noise.add(error, gates.I)
+    #noise.add(DepolarizingError(lam=0.1), gates.RX)
 else:
     noise = None
 
@@ -123,3 +127,10 @@ print(f"Execution time required: ", (end - start))
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.params)
+
+params = noise.errors[gates.I][0][1].options
+probs = [params[k][1] for k in range(3)]
+
+bounds = bound_pred(probs, layers, nqubits)
+print(bounds)
+np.save(f"{cache_dir}/pred_bound", np.array(bounds))
