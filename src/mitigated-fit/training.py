@@ -39,7 +39,7 @@ ndata = conf["ndata"]
 training_type = get_training_type(conf)
 
 # prepare data
-data, labels, scaler = prepare_data(conf["function"])
+data, labels, scaler = prepare_data(conf["function"], show_sample=True)
 
 # noise model
 if conf["noise"]:
