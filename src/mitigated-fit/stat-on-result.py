@@ -1,13 +1,25 @@
+import argparse
+import random
+import os
+import json
+
 import numpy as np
-from vqregressor import vqregressor
 import matplotlib.pyplot as plt
-import scipy.stats, json, os
-import argparse, random
+
+import scienceplots
+
+import scipy.stats
+from tqdm import tqdm 
+
 from qibo.noise import NoiseModel, DepolarizingError
-from qibo import gates, set_backend
+from qibo import gates
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.backends import construct_backend
 
+from prepare_data import prepare_data
+from vqregressor import vqregressor
+
+plt.style.use('science')
 
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
 
@@ -39,26 +51,34 @@ parser.add_argument(
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
 ndata = 50
-nruns = 50
+nruns = 10
 
-def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, color):
+def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, color, label):
 
     global ndata, nruns 
     
     # plot results
-    fit_axis.plot(data, means, c=color, alpha=0.7, lw=2, label="Mean values")
+    fit_axis.plot(data, means, c=color, alpha=0.7, lw=2, label=label)
     fit_axis.fill_between(
         data,
         means - stds,
         means + stds,
         alpha=0.25,
         color=color,
-        #label="Confidence belt",
     )
+    #fit_fig.legend(loc=1, borderaxespad=3)
+    #fit_fig.savefig('fits_benchmark.pdf', bbox_inches='tight')
 
-    loss_grad_axes[0].plot(loss_history, c=color)
-    loss_grad_axes[1].plot(np.sqrt((grad_history*grad_history).sum(-1)), c=color)
-
+    loss_grad_axes[0].plot(loss_history, c=color, lw=2, alpha=0.7, label=label)
+    loss_grad_axes[1].plot(
+        np.sqrt((grad_history*grad_history).sum(-1)), 
+        c=color,
+        lw=2,
+        alpha=0.7,
+        label=label)
+    
+    #loss_grad_fig.legend(loc=1, borderaxespad=3)
+    #loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
 
     
     
@@ -74,28 +94,14 @@ def main(args):
     if conf["qibolab"]:
         backend = construct_backend("qibolab", conf["platform"])
     else:
-        backend = construct_backend("qibojit", platform="numba")
-        #backend = construct_backend("numpy")
+        #backend = construct_backend("qibojit", platform="numba")
+        backend = construct_backend("numpy")
 
     # define dataset cardinality and number of executions
     global ndata, nruns
 
-    data = np.linspace(-1, 1, ndata)
-    scaler = lambda x: x
-    if conf["function"] == "sinus":
-        labels = np.sin(2 * data)
-    elif conf["function"] == "hdw_target":
-        labels = np.exp(-data) * np.cos(3 * data) * 0.3
-    elif conf["function"] == "gamma":
-        labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
-    elif conf["function"] == "gluon":
-        scaler = lambda x: np.log(x)
-        parton = conf["parton"]
-        data = np.loadtxt(f"gluon/data/{parton}.dat")
-        idx = np.sort(random.sample(range(len(data)), ndata))
-        data = data[idx]
-        labels = data.T[1]
-        data = data.T[0]
+    # loading data 
+    data, labels, scaler = prepare_data(conf["function"], show_sample=False)
 
     # noise model
     if conf["noise"]:
@@ -130,37 +136,44 @@ def main(args):
     }   
 
     # plot results
-    fit_fig, fit_axis = plt.subplots(figsize=(8, 6))
+    fit_fig , fit_axis = plt.subplots(1, 1, figsize=(10, 6))
     fit_axis.plot(data, labels, c="black", lw=2, alpha=0.8, label="Target function")
     fit_axis.set_title("Statistics on results")
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
+    #fit_fig.legend(loc=1, borderaxespad=3)
 
-    loss_grad_fig, loss_grad_axes = plt.subplots(1, 2, figsize=(12,6))
+    loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(10,8))
     plt.rcParams['text.usetex'] = True
+    loss_grad_axes[0].set_title('Loss history')
     loss_grad_axes[0].set_xlabel('Epoch')
     loss_grad_axes[0].set_ylabel("Loss")
+    loss_grad_axes[1].set_title(r'$\|Grad\|$ history')
     loss_grad_axes[1].set_xlabel('Epoch')
     loss_grad_axes[1].set_ylabel(r'$\|Grad\|$')
+    #loss_grad_fig.legend(loc=1, borderaxespad=3)
     
     files = os.listdir(f"{args.example}/cache/")
-    settings, mitigation_settings, colors = [], [], []
+    settings, mitigation_settings, colors, labels = [], [], [], []
     for f in files:
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
             mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
-            colors.append('orange')
+            colors.append('blue')
+            labels.append('No mitigation')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
             mitigation_settings.append({"step":True,"final":True,"method":"CDR","readout":"calibration_matrix"})
-            colors.append('blue')
+            colors.append('red')
+            labels.append('Full mitigation')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_no_final_yes" in f:
             settings.append("full_mitigation_step_no_final_yes")
             mitigation_settings.append({"step":False,"final":True,"method":"CDR","readout":"calibration_matrix"})
-            colors.append('green')
+            colors.append('orange')
+            labels.append('Mitigation on predictions')
 
 
-    for setting, mitigation, color in zip(settings, mitigation_settings, colors):
+    for setting, mitigation, color, label in zip(settings, mitigation_settings, colors, labels):
 
         print(f"> Drawing '{setting}' plot in {color}.")
         print(f"> Loading best parameters from:\n  -> '{args.example}/cache/best_params_{conf['optimizer']}_{setting}.npy'.")
@@ -183,7 +196,7 @@ def main(args):
 
         predictions = []
 
-        for _ in range(nruns):
+        for _ in tqdm(range(nruns)):
             predictions.append(VQR.predict_sample())
 
         predictions = np.asarray(predictions)
@@ -208,11 +221,14 @@ def main(args):
             stds,
             loss_history,
             grad_history,
-            color
+            color,
+            label
         )
-    plt.show()
 
-        
+    fit_axis.legend(loc=1)
+    fit_fig.savefig('fits_benchmark.pdf', bbox_inches='tight')
+    loss_grad_axes[0].legend(loc=1)
+    loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
     
 
 
