@@ -43,19 +43,19 @@ def prepare_data(example:str, show_sample:bool=False):
         scaler = lambda x: np.log(x)
         parton = conf["parton"]
         data = np.loadtxt(f"gluon/data/{parton}.dat")
-        idx = np.sort(random.sample(range(len(data)), ndata))
+        idx = np.round(np.linspace(0,len(data)-1,ndata)).astype(int)
         labels = data.T[1][idx]
         data = data.T[0][idx]
     elif function == "cosnd":
+        data = np.linspace(-1, 1, ndata)
+        data = (np.ones((ndim,1))*data).T
         thetas = np.linspace(0.5, 2.5, ndim)
         labels = np.zeros(ndata)
 
         for dim in range(ndim):
             contribute = np.cos(thetas[dim]*data.T[dim])**[dim+1] + ((-1)**dim)*thetas[dim]*data.T[dim]
             labels += contribute
-        
         labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
-
     # print in case you want to have a look to the data     
     if show_sample:
         if ndim != 1:
