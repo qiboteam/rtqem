@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # import qibo's packages
-import qibo
 from qibo import gates
 from qibo.hamiltonians import Hamiltonian, SymbolicHamiltonian
 from qibo.models import Circuit
@@ -20,6 +19,7 @@ from bp_utils import bound_pred, bound_grad
 # qibo.set_backend('qibolab', platform='tii1q_b1')
 
 class vqregressor:
+
     def __init__(
         self,
         data,
@@ -29,6 +29,7 @@ class vqregressor:
         nqubits=1,  
         backend=None,
         noise_model=None,
+        bp_bound=True,
         nshots=1000,
         expectation_from_samples=True,
         obs_hardware=False,
@@ -53,6 +54,7 @@ class vqregressor:
         self.ndata = len(labels)
         self.backend = backend
         self.noise_model = noise_model
+        self.bp_bound = bp_bound
         self.nshots = nshots
         self.exp_from_samples = expectation_from_samples
         self.obs_hardware = obs_hardware
@@ -82,7 +84,7 @@ class vqregressor:
 
         if mitigation['method'] is not None:
             self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
-            self.mit_params = self.get_fit()
+            self.mit_params = None
 
         
 
@@ -217,23 +219,24 @@ class vqregressor:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
-        readout_args = self.mit_kwargs['readout']
-        if readout_args != {}:
-            result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
+            readout_args = self.mit_kwargs['readout']
+            if readout_args != {}:
+                result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
             obs = result.expectation_from_samples(observable)
         else:
             obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
         if self.obs_hardware:
             obs = np.sqrt(abs(obs))
         return obs
-    
+   
     def get_fit(self):
         mean_params = []
         mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples','readout']}
+        cdr_data = []
         for _ in range(self.mit_kwargs['N_mean']):
             self.circuit.set_parameters(np.random.uniform(-np.pi,np.pi,int(self.nparams/2)))
             circuit, observable = self.epx_value()
-            params = self.mitigation['method'](
+            cdr = self.mitigation['method'](
                 circuit=circuit,
                 observable=observable,
                 noise_model=self.noise_model,
@@ -241,15 +244,18 @@ class vqregressor:
                 nshots=self.nshots,
                 full_output=True,
                 **mit_kwargs
-            )[2]
-            print(params)
-            mean_params.append(params)
+            )
+            mean_params.append(cdr[2])
+            print(cdr[2])
+            cdr_data.append(cdr)
         mean_params = np.mean(mean_params,axis=0)
-        return mean_params
+        return mean_params, cdr_data
 
     def one_mitigated_prediction(self, x):
         """This function calculates one mitigated prediction with fixed x."""
         obs_noisy = self.one_prediction_readout(x)
+        if self.mit_params is None:
+            self.mit_params = self.get_fit()[0]
         obs = self.mit_params[0]*obs_noisy + self.mit_params[1]
         return obs
 
@@ -314,9 +320,17 @@ class vqregressor:
         """This function calculates the derivative of the loss function with respect
         to the variational parameters of the model."""
 
-        params = self.noise_model.errors[gates.I][0][1].options
-        probs = [params[k][1] for k in range(3)]
-        bound_grads = bound_grad(probs, self.layers, self.nqubits)
+        if self.noise_model is not None:
+            params = self.noise_model.errors[gates.I][0][1].options
+            probs = [params[k][1] for k in range(4**self.nqubits-1)]
+            bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]**(1/self.nqubits)
+        else:
+            probs = np.zeros(4**self.nqubits-1)
+            bit_flip = 0
+
+        if self.bp_bound:
+            bound_grads = bound_grad(self.layers, self.nqubits, probs, bit_flip)
+            bound_preds = bound_pred(self.layers, self.nqubits, probs, bit_flip)
 
         if data is None:
             data = self.data
@@ -330,7 +344,7 @@ class vqregressor:
         dloss_bound = 0
         # we also keep track of the loss value
         loss = 0
-
+        loss_bound = 0
         # cycle on all the sample
         for x, y in zip(data, labels):
             # calculate prediction
@@ -341,10 +355,13 @@ class vqregressor:
             mse = prediction - y
             loss += mse**2
             dloss += 2 * mse * dcirc
-            dloss_bound += 2 * abs(mse) * bound_grads
+            if self.bp_bound:
+                dloss_bound += (2 * mse * bound_grads)**2
+                if y - bound_preds > 0:
+                    loss_bound += (y - bound_preds)**2
         
 
-        return dloss, loss / len(data), dloss_bound
+        return dloss / len(data), loss / len(data), np.sqrt(dloss_bound) / len(data), loss_bound / len(data)
 
     # ---------------------- Update parameters if we use Adam ----------------------
 
@@ -376,7 +393,7 @@ class vqregressor:
         Returns: np.float new values of momentum and velocity
         """
 
-        grads, loss, dloss_bound  = self.evaluate_loss_gradients(data, labels)
+        grads, loss, dloss_bound, loss_bound  = self.evaluate_loss_gradients(data, labels)
         
         m = beta_1 * m + (1 - beta_1) * grads
         v = beta_2 * v + (1 - beta_2) * grads * grads
@@ -384,7 +401,7 @@ class vqregressor:
         vhat = v / (1.0 - beta_2 ** (iteration + 1))
         self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
 
-        return m, v, loss, grads, dloss_bound
+        return m, v, loss, grads, dloss_bound, loss_bound
 
     def data_loader(self, batchsize):
         """Returns a random batch of data with their labels"""
@@ -402,7 +419,6 @@ class vqregressor:
         )
 
     # ---------------------- Gradient Descent ------------------------------------
-
     def gradient_descent(
         self,
         learning_rate,
@@ -437,15 +453,21 @@ class vqregressor:
 
         cache_dir = f"{self.example}/cache"
 
+        if self.noise_model is not None:
+            noise = True
+        else:
+            noise = False
+        train_type = get_training_type(self.mitigation, noise)
+
         # creating folder where to save params during training
-        if not os.path.exists(f"{cache_dir}/params_history"):
-            os.makedirs(f"{cache_dir}/params_history")
+        if not os.path.exists(f"{cache_dir}/params_history_{train_type}"):
+            os.makedirs(f"{cache_dir}/params_history_{train_type}")
 
         # resuming old training
         if restart_from_epoch is not None:
             print(f"Resuming parameters from epoch {restart_from_epoch}")
             resume_params = np.load(
-                f"{cache_dir}/params_history/params_epoch_{restart_from_epoch}.npy"
+                f"{cache_dir}/params_history_{train_type}/params_epoch_{restart_from_epoch}.npy"
             )
             self.set_parameters(resume_params)
         else:
@@ -457,7 +479,10 @@ class vqregressor:
             restart = restart_from_epoch
 
         # we track the loss history
-        loss_history, grad_history, grad_bound_history = [], [], []
+        loss_history, grad_history, grad_bound_history, loss_bound_history = [], [], [], []
+        
+        if self.mitigation['step'] is True:
+            cdr_history = []
 
         # useful if we use adam optimization
         if method == "Adam":
@@ -467,8 +492,9 @@ class vqregressor:
         # cycle over the epochs
         for epoch in range(epochs):
 
-            if self.mitigation['step'] is True and epoch%self.mit_kwargs['N_update']==0 and epoch != 0:   
-                self.mit_params = self.get_fit()
+            if self.mitigation['step'] is True and epoch%self.mit_kwargs['N_update']==0:   
+                self.mit_params, cdr_data = self.get_fit()
+                cdr_history.append(cdr_data)
 
             iteration = 0
 
@@ -488,7 +514,7 @@ class vqregressor:
 
                 # update parameters using the chosen method
                 if method == "Adam":
-                    m, v, loss, grads, dloss_bound = self.apply_adam(
+                    m, v, loss, grads, dloss_bound, loss_bound = self.apply_adam(
                         learning_rate, m, v, data, labels, iteration
                     )
                 elif method == "Standard":
@@ -497,7 +523,9 @@ class vqregressor:
                 
                 grad_history.append(grads)
                 loss_history.append(loss)
-                grad_bound_history.append(dloss_bound)
+                if self.bp_bound:
+                    grad_bound_history.append(dloss_bound)
+                    loss_bound_history.append(loss_bound)
 
                 # track the training
                 print(
@@ -509,12 +537,12 @@ class vqregressor:
                     loss,
                 )
 
-            if live_plotting:
-                self.show_predictions(f"Live_predictions", save=True)
+                if live_plotting:
+                    self.show_predictions(f"Live_predictions", save=True)
 
             np.save(
                 arr=self.params,
-                file=f"{cache_dir}/params_history/params_epoch_{epoch + restart + 1}",
+                file=f"{cache_dir}/params_history_{train_type}/params_epoch_{epoch + restart + 1}",
             )
 
             
@@ -529,10 +557,18 @@ class vqregressor:
                 name += "-final"
             if self.mitigation['readout']:
                 name += f"-readout"
-        train_type = get_training_type(self.mitigation)
+        # if self.noise_model is not None:
+        #     noise = True
+        # else:
+        #     noise = False
+        # train_type = get_training_type(self.mitigation, noise)
         np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{train_type}")
         np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{train_type}")
-        np.save(arr=np.asarray(grad_bound_history), file=f"{cache_dir}/grad_bound_history_{train_type}")
+        if self.bp_bound:
+            np.save(arr=np.asarray(grad_bound_history), file=f"{cache_dir}/grad_bound_history_{train_type}")
+            np.save(arr=np.asarray(loss_bound_history), file=f"{cache_dir}/loss_bound_history_{train_type}")
+        if self.mitigation['step'] is True:
+            np.save(arr=np.asanyarray(cdr_data, dtype=object), file=f"{cache_dir}/cdr_history_{train_type}")
 
         return loss_history
 
@@ -555,7 +591,6 @@ class vqregressor:
         return loss / self.ndata
 
     # ---------------------------- CMA OPTIMIZATION --------------------------------
-
     def cma_optimization(self):
         """Method which performs a GA optimization."""
 
@@ -584,6 +619,17 @@ class vqregressor:
         else:
             x_0_array = self.data
 
+        if self.noise_model is not None:
+            params = self.noise_model.errors[gates.I][0][1].options
+            probs = [params[k][1] for k in range(4**self.nqubits-1)]
+            bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]**(1/self.nqubits)
+        else:
+            probs = np.zeros(4**self.nqubits-1)
+            bit_flip = 0
+
+        if self.bp_bound:
+            bounds = bound_pred(self.layers, self.nqubits, probs, bit_flip)
+
         # draw the results
         plt.figure(figsize=(12, 8))
         plt.title(title)
@@ -607,6 +653,15 @@ class vqregressor:
             s=70,
             marker="o",
         )
+
+        if self.bp_bound:
+            plt.plot(
+                x_0_array,
+                [bounds]*len(x_0_array),
+                color="red",
+                alpha=0.6,
+                label="BP Bound",
+            )
 
         plt.legend()
 

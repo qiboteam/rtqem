@@ -1,5 +1,4 @@
 import argparse
-import random
 import os
 import json
 
@@ -9,10 +8,9 @@ import matplotlib.pyplot as plt
 
 import scienceplots
 
-import scipy.stats
 from tqdm import tqdm 
 
-from qibo.noise import NoiseModel, DepolarizingError
+from qibo.noise import NoiseModel, DepolarizingError, ReadoutError, PauliError
 from qibo import gates
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.backends import construct_backend
@@ -20,7 +18,8 @@ from qibo.backends import construct_backend
 from prepare_data import prepare_data
 from vqregressor import vqregressor
 
-from bp_utils import bound_pred
+from itertools import product
+from functools import reduce
 
 plt.style.use('science')
 
@@ -62,7 +61,7 @@ ndata = 50
 nruns = 10
 
 
-def plot(i,fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, grad_bound_history, color, label):
+def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_history, grad_history, grad_bound_history, color, label):
 
     global ndata, nruns
     
@@ -83,21 +82,24 @@ def plot(i,fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_histo
 
     loss_grad_axes[0].plot(loss_history, c=color, lw=2, alpha=0.7, label=label)
     loss_grad_axes[0].set_yscale('log')
+    loss_grad_axes[1].set_yscale('log')
     loss_grad_axes[1].plot(
         np.max(np.sqrt((grad_history*grad_history)),axis=-1), 
         c=color,
         lw=2,
         alpha=0.7,
         label=label)
-    if i == 0:
-        loss_grad_axes[1].plot(
-            grad_bound_history, 
-            '--',
-            c='green',
-            lw=2,
-            alpha=0.7,
-            label='BP bound')
-    i +=1
+    if type(loss_history) == np.ndarray and type(loss_bound_history) == np.ndarray:
+        if label == "No mitigation":
+            loss_grad_axes[0].plot(loss_bound_history, '--', c='green', lw=2, alpha=0.7, label='BP bound')
+        elif label == "Exact":
+            loss_grad_axes[1].plot(
+                grad_bound_history, 
+                '--',
+                c='green',
+                lw=2,
+                alpha=0.7,
+                label='BP bound')
     
     #loss_grad_fig.legend(loc=1, borderaxespad=3)
     #loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
@@ -127,8 +129,18 @@ def main(args):
 
     # noise model
     if conf["noise"]:
+        qm = 0.1
+        probabilities = [0.03,0.03,0.03]
+
+        paulis = list(product(["I", "X", "Y", "Z"], repeat=conf["nqubits"]))[1:]
+        single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
+        readout_matrix = reduce(np.kron, [single_readout_matrix]*conf["nqubits"])
+        pauli_noise = PauliError(list(zip(paulis, probabilities)))
+        readout_noise = ReadoutError(readout_matrix)
+
         noise = NoiseModel()
-        noise.add(DepolarizingError(lam=0.1), gates.RX)
+        noise.add(pauli_noise, gates.I)
+        noise.add(readout_noise, gates.M)
     else:
         noise = None
 
@@ -175,9 +187,9 @@ def main(args):
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
     #fit_fig.legend(loc=1, borderaxespad=3)
-
-    pred_bound = np.load(f"{args.example}/cache/pred_bound.npy")
-    fit_axis.plot(data1, [pred_bound]*len(data), '--', c="green", alpha=0.7, lw=2, label="BP bound")
+    if conf["bp_bound"]:
+        pred_bound = np.load(f"{args.example}/cache/pred_bound.npy")
+        fit_axis.plot(data1, [pred_bound]*len(data), '--', c="green", alpha=0.7, lw=2, label="BP bound")
 
     loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(10,12))
     plt.rcParams['text.usetex'] = True
@@ -198,22 +210,29 @@ def main(args):
             labels.append('No mitigation')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":True,"final":True,"method":"CDR","readout":"calibration_matrix"})
+            mitigation_settings.append({"step":True,"final":True,"method":"CDR","readout":None})
             colors.append('red')
+            labels.append('Real time mitigation')
+        if f"best_params_{conf['optimizer']}_noiseless" in f:
+            settings.append("noiseless")
+            mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
+            colors.append('green')
+            labels.append('Exact')
+        if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
+            settings.append("full_mitigation_step_yes_final_yes")
+            mitigation_settings.append({"step":False,"final":True,"method":"CDR","readout":"calibration_matrix"})
+            colors.append('orange')
             labels.append('Full mitigation')
-        # if f"best_params_{conf['optimizer']}_full_mitigation_step_no_final_yes" in f:
-        #     settings.append("full_mitigation_step_no_final_yes")
-        #     mitigation_settings.append({"step":False,"final":True,"method":"CDR","readout":"calibration_matrix"})
-        #     colors.append('orange')
-        #     labels.append('Mitigation on predictions')
 
-    i = 0
     for setting, mitigation, color, label in zip(settings, mitigation_settings, colors, labels):
 
         print(f"> Drawing '{setting}' plot in {color}.")
         print(f"> Loading best parameters from:\n  -> '{args.example}/cache/best_params_{conf['optimizer']}_{setting}.npy'.")
         best_params = np.load(f"{args.example}/cache/best_params_{conf['optimizer']}_{setting}.npy")
-
+        if setting == 'noiseless':
+            noise_setting = None
+        else:
+            noise_setting = noise
         # initialize vqr with data and best parameters
         VQR = vqregressor(
             layers=conf["nlayers"],
@@ -224,7 +243,8 @@ def main(args):
             backend=backend,
             nshots=conf["nshots"],
             expectation_from_samples=conf["expectation_from_samples"],
-            noise_model=noise,
+            noise_model=noise_setting,
+            bp_bound=conf["bp_bound"],
             mitigation=mitigation,
             mit_kwargs=mit_kwargs[mitigation["method"]],
             scaler=scaler,
@@ -247,23 +267,29 @@ def main(args):
         np.save(arr=stds, file=f"{args.example}/stds_{platform}")
 
         loss_history = np.load(f"{args.example}/cache/loss_history_{setting}.npy")
+        print('Minimum loss', np.argmin(loss_history) + 1)
         grad_history = np.load(f"{args.example}/cache/grad_history_{setting}.npy")
-        grad_bound_history = np.load(f"{args.example}/cache/grad_bound_history_{setting}.npy")
+
+        if conf["bp_bound"]:
+            loss_bound_history = np.load(f"{args.example}/cache/loss_bound_history_{setting}.npy")
+            grad_bound_history = np.load(f"{args.example}/cache/grad_bound_history_{setting}.npy")
+        else:
+            loss_bound_history = 0
+            grad_bound_history = 0
 
         plot(
-            i,
             fit_axis,
             loss_grad_axes,
             data,
             means,
             stds,
             loss_history,
+            loss_bound_history,
             grad_history,
             grad_bound_history,
             color,
             label
         )
-        i += 1
 
     fit_axis.minorticks_off()
     loss_grad_axes[0].minorticks_off()
