@@ -1,4 +1,4 @@
-import os
+import os, time
 
 # some useful python package
 import numpy as np
@@ -12,9 +12,10 @@ from qibo.models import Circuit
 from qibo.models import error_mitigation
 from qibo.symbols import Z
 
+from savedata_utils import get_training_type
+
 # numpy backend is enough for a 1-qubit model
 # qibo.set_backend('qibolab', platform='tii1q_b1')
-
 
 class vqregressor:
     def __init__(
@@ -235,7 +236,6 @@ class vqregressor:
                 full_output=True,
                 **mit_kwargs
             )[2]
-            print(params)
             mean_params.append(params)
         mean_params = np.mean(mean_params,axis=0)
         return mean_params
@@ -294,7 +294,7 @@ class vqregressor:
         to the variational parameters of the circuit are performed via parameter-shift
         rule (PSR)."""
         dcirc = np.zeros(self.nparams)
-
+        
         for par in range(self.nparams):
             # read qibo documentation for more information about this PSR implementation
             dcirc[par] = self.parameter_shift(par, x)
@@ -329,6 +329,7 @@ class vqregressor:
             mse = prediction - y
             loss += mse**2
             dloss += 2 * mse * dcirc
+        
 
         return dloss, loss / len(data)
 
@@ -363,7 +364,7 @@ class vqregressor:
         """
 
         grads, loss = self.evaluate_loss_gradients(data, labels)
-
+        
         m = beta_1 * m + (1 - beta_1) * grads
         v = beta_2 * v + (1 - beta_2) * grads * grads
         mhat = m / (1.0 - beta_1 ** (iteration + 1))
@@ -480,7 +481,7 @@ class vqregressor:
                 elif method == "Standard":
                     grads, loss = self.evaluate_loss_gradients()
                     self.params -= learning_rate * dloss
-
+                
                 grad_history.append(grads)
                 loss_history.append(loss)
 
@@ -494,15 +495,29 @@ class vqregressor:
                     loss,
                 )
 
-                np.save(
-                    arr=self.params,
-                    file=f"{cache_dir}/params_history/params_epoch_{epoch + restart + 1}",
-                )
-                np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history")
-                np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history")
+            if live_plotting:
+                self.show_predictions(f"Live_predictions", save=True)
 
-                if live_plotting:
-                    self.show_predictions(f"Live_predictions", save=True)
+            np.save(
+                arr=self.params,
+                file=f"{cache_dir}/params_history/params_epoch_{epoch + restart + 1}",
+            )
+
+            
+        name = ""
+        if self.noise_model is not None:
+            name += "noisy"
+        if self.mitigation['method'] is not None:
+            name += f"_{self.mitigation['method'].__name__}"
+            if self.mitigation['step']:
+                name += "-step"
+            if self.mitigation['final']:
+                name += "-final"
+            if self.mitigation['readout']:
+                name += f"-readout"
+        train_type = get_training_type(self.mitigation)
+        np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{train_type}")
+        np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{train_type}")
 
         return loss_history
 

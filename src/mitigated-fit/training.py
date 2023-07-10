@@ -36,7 +36,7 @@ layers = conf["nlayers"]
 ndata = conf["ndata"]
 
 # get string to identify the training type
-training_type = get_training_type(conf)
+training_type = get_training_type(conf["mitigation"])
 
 # prepare data
 data, labels, scaler = prepare_data(conf["function"], show_sample=True)
@@ -51,8 +51,9 @@ else:
 if conf["qibolab"]:
     backend = construct_backend("qibolab", conf["platform"])
 else:
-    backend = construct_backend("numpy")
-
+    backend = construct_backend("qibojit", platform="numba")
+    #backend = construct_backend("numpy")
+    
 readout = {}
 if conf["mitigation"]["readout"] is not None:
     if conf["mitigation"]["readout"] == "calibration_matrix":
