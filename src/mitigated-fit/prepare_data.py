@@ -43,7 +43,7 @@ def prepare_data(example:str, show_sample:bool=False):
         scaler = lambda x: np.log(x)
         parton = conf["parton"]
         data = np.loadtxt(f"gluon/data/{parton}.dat")
-        idx = np.sort(random.sample(range(len(data)), ndata))
+        idx = np.round(np.linspace(0,len(data)-1,ndata)).astype(int)
         labels = data.T[1][idx]
         data = data.T[0][idx]
     elif function == "cosnd":
