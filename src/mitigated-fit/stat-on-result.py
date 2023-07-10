@@ -96,7 +96,7 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_h
             loss_grad_axes[1].plot(
                 grad_bound_history, 
                 '--',
-                c='green',
+                c='black',
                 lw=2,
                 alpha=0.7,
                 label='BP bound')
