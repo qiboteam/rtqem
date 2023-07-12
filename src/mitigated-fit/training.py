@@ -46,10 +46,9 @@ data, labels, scaler = prepare_data(conf["function"], show_sample=True)
 
 # noise model
 if conf["noise"]:
-    qm = 0.1
-    probabilities = [0.03,0.03,0.03]
-
+    qm = 0.1  
     paulis = list(product(["I", "X", "Y", "Z"], repeat=nqubits))[1:]
+    probabilities = 0.1*np.random.rand(len(paulis)) / len(paulis)
     single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
     readout_matrix = reduce(np.kron, [single_readout_matrix]*nqubits)
     pauli_noise = PauliError(list(zip(paulis, probabilities)))
@@ -141,7 +140,7 @@ np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.para
 
 if conf["noise"] and conf["bp_bound"] and os.path.exists(f"{cache_dir}/pred_bound") == False:
     params = noise.errors[gates.I][0][1].options
-    probs = [params[k][1] for k in range(3)]
+    probs = [params[k][1] for k in range(4**nqubits-1)]
     bit_flip = noise.errors[gates.M][0][1].options[0,-1]**(1/nqubits)
     bounds = bound_pred(layers, nqubits, probs, bit_flip)
     np.save(f"{cache_dir}/pred_bound", np.array(bounds))
