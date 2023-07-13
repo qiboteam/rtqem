@@ -1,10 +1,11 @@
-import os, time
+import os, random
 
 # some useful python package
 import numpy as np
 import matplotlib.pyplot as plt
 
 # import qibo's packages
+import qibo
 from qibo import gates
 from qibo.hamiltonians import Hamiltonian, SymbolicHamiltonian
 from qibo.models import Circuit
@@ -86,6 +87,7 @@ class vqregressor:
             self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
             self.mit_params = None
 
+        qibo.set_backend("numpy")
         
 
     # ---------------------------- ANSATZ ------------------------------------------
@@ -235,6 +237,7 @@ class vqregressor:
         cdr_data = []
         for _ in range(self.mit_kwargs['N_mean']):
             self.circuit.set_parameters(np.random.uniform(-np.pi,np.pi,int(self.nparams/2)))
+            self.inject_data(self.data[random.randint(0,self.ndata-1)])
             circuit, observable = self.epx_value()
             cdr = self.mitigation['method'](
                 circuit=circuit,
@@ -426,7 +429,7 @@ class vqregressor:
         batchsize=10,
         restart_from_epoch=None,
         method="Adam",
-        J_treshold=1e-5,
+        J_treshold=1e-11,
         live_plotting=True,
     ):
         """
@@ -499,13 +502,14 @@ class vqregressor:
             iteration = 0
 
             # stop the training if the target loss is reached
-            if epoch != 0 and loss_history[-1] < J_treshold:
-                print(
-                    "Desired sensibility is reached, here we stop: ",
-                    iteration,
-                    " iteration",
-                )
-                break
+            if False:
+                if epoch != 0 and loss_history[-1] < J_treshold:
+                    print(
+                        "Desired sensibility is reached, here we stop: ",
+                        iteration,
+                        " iteration",
+                    )
+                    break
 
             # run over the batches
             for data, labels in self.data_loader(batchsize):
@@ -658,7 +662,7 @@ class vqregressor:
             plt.plot(
                 x_0_array,
                 [bounds]*len(x_0_array),
-                color="red",
+                color="black",
                 alpha=0.6,
                 label="BP Bound",
             )

@@ -10,16 +10,13 @@ import scienceplots
 
 from tqdm import tqdm 
 
-from qibo.noise import NoiseModel, DepolarizingError, ReadoutError, PauliError
-from qibo import gates
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.backends import construct_backend
 
 from prepare_data import prepare_data
+from bp_utils import generate_noise_model
 from vqregressor import vqregressor
 
-from itertools import product
-from functools import reduce
 
 plt.style.use('science')
 
@@ -91,7 +88,7 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_h
         label=label)
     if type(loss_history) == np.ndarray and type(loss_bound_history) == np.ndarray:
         if label == "No mitigation":
-            loss_grad_axes[0].plot(loss_bound_history, '--', c='green', lw=2, alpha=0.7, label='BP bound')
+            loss_grad_axes[0].plot(loss_bound_history, '--', c='black', lw=2, alpha=0.7, label='BP bound')
         elif label == "Exact":
             loss_grad_axes[1].plot(
                 grad_bound_history, 
@@ -127,27 +124,20 @@ def main(args):
     # loading data 
     data, labels, scaler = prepare_data(conf["function"], show_sample=False)
 
+    # noise parameters
+    qm = conf["qm"]
+    noise_magnitude = conf["noise_magnitude"]
+
     # noise model
     if conf["noise"]:
-        qm = 0.1
-        probabilities = [0.03,0.03,0.03]
-
-        paulis = list(product(["I", "X", "Y", "Z"], repeat=conf["nqubits"]))[1:]
-        single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
-        readout_matrix = reduce(np.kron, [single_readout_matrix]*conf["nqubits"])
-        pauli_noise = PauliError(list(zip(paulis, probabilities)))
-        readout_noise = ReadoutError(readout_matrix)
-
-        noise = NoiseModel()
-        noise.add(pauli_noise, gates.I)
-        noise.add(readout_noise, gates.M)
+        noise = generate_noise_model(qm=qm, nqubits=conf["nqubits"], noise_magnitude=noise_magnitude)
     else:
         noise = None
 
     if conf["qibolab"]:
         backend = construct_backend("qibolab", conf["platform"])
     else:
-        backend = construct_backend("qibojit", platform="numba")
+        backend = construct_backend("numpy")
 
     readout = {}
     if conf["mitigation"]["readout"] is not None:
@@ -189,7 +179,7 @@ def main(args):
     #fit_fig.legend(loc=1, borderaxespad=3)
     if conf["bp_bound"]:
         pred_bound = np.load(f"{args.example}/cache/pred_bound.npy")
-        fit_axis.plot(data1, [pred_bound]*len(data), '--', c="green", alpha=0.7, lw=2, label="BP bound")
+        fit_axis.plot(data1, [pred_bound]*len(data), '--', c="black", alpha=0.7, lw=2, label="BP bound")
 
     loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(10,12))
     plt.rcParams['text.usetex'] = True
