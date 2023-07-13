@@ -7,27 +7,20 @@ from qibo.noise import NoiseModel, PauliError, ReadoutError
 from qibo import gates
 
 def get_terms(nqubits):
-    obs_list = np.array(list(product(['I','X','Y','Z'],repeat=nqubits)))[1::]
-    obs_sign_list = []
-    for k, obs in enumerate(obs_list):
-        mask = obs != 'I'
-        obs_mask = obs[mask]
-        obs_sign = np.zeros(len(obs_list))
-        for j, obs1 in enumerate(obs_list):
-            obs1_mask = obs1[mask]
-            mask2 = obs1_mask != 'I'
-            index = obs_mask[mask2] != obs1_mask[mask2]
-            if list(index).count(True)%2 != 0:
-                obs_sign[j] = -2
-        obs_sign_list.append(obs_sign)
-    return obs_sign_list
+    num_terms = 4**nqubits-1
+    terms = [-2]*num_terms
+    terms_list = []
+    for k in range(num_terms):
+        term = terms.copy()
+        term[k] = 0
+        terms_list.append(term)
+    return terms_list
 
 
 def bound_pred(L, nqubits, probs, bit_flip = 0):
     obs_sign_list = get_terms(nqubits)
     qm = 1 - 2*bit_flip
-    #px, py, pz = probs
-    tr_distance = 2*(1-1/2**nqubits)
+    tr_distance = 1 #2*(1-1/2**nqubits)
     N0 = 1
     w_inf = 1
     qs = []
