@@ -7,7 +7,7 @@ import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 
-def prepare_data(example:str, show_sample:bool=False):
+def prepare_data(example:str, show_sample:bool=False, run_name:str=None):
     """
     Prepare data sample and labels according to example's conf file
     
@@ -18,8 +18,13 @@ def prepare_data(example:str, show_sample:bool=False):
     Returns sampled_data, labels, scaler
     """
 
-    with open("{}/{}.conf".format(example, example), "r") as f:
-        conf = json.loads(f.read())
+    if run_name is not None:
+        conf_file = f"{example}/{run_name}/{example}.conf"
+    else:
+        conf_file = f"{example}/{example}.conf"
+
+    with open(conf_file, "r") as f:
+        conf = json.load(f)
 
     ndata = conf["ndata"]
     ndim = conf["ndim"]

@@ -20,7 +20,7 @@ from vqregressor import vqregressor
 
 plt.style.use('science')
 
-mpl.rcParams.update({'font.size': 22})
+mpl.rcParams.update({'font.size': 13})
 mpl.rcParams['xtick.major.size'] = 10
 mpl.rcParams['xtick.minor.size'] = 5
 mpl.rcParams['ytick.major.size'] = 10
@@ -51,11 +51,17 @@ parser.add_argument(
     type=str,
 )
 
+parser.add_argument(
+    "--run_name",
+    default=None,
+    help="Name of the run if data are saved in a sub-folder of the example",
+    type=str,
+)
 
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
-ndata = 50
-nruns = 10
+ndata = 100
+nruns = 50
 
 
 def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_history, grad_history, grad_bound_history, color, label):
@@ -71,10 +77,11 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_h
         data,
         means - stds,
         means + stds,
-        alpha=0.25,
+        alpha=0.2,
+        hatch="//",
         color=color,
     )
-    #fit_fig.legend(loc=1, borderaxespad=3)
+    #fit_fig.legend(loc=2, borderaxespad=3)
     #fit_fig.savefig('fits_benchmark.pdf', bbox_inches='tight')
 
     loss_grad_axes[0].plot(loss_history, c=color, lw=2, alpha=0.7, label=label)
@@ -106,7 +113,7 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_h
 def main(args):
     
     conf_file = (
-        args.conf if args.conf is not None else f"{args.example}/{args.example}.conf"
+        args.conf if args.conf is not None else f"{args.example}/{args.run_name}/{args.example}.conf"
     )
     with open(conf_file, "r") as f:
         conf = json.load(f)
@@ -122,7 +129,7 @@ def main(args):
     global ndata, nruns
 
     # loading data 
-    data, labels, scaler = prepare_data(conf["function"], show_sample=False)
+    data, labels, scaler = prepare_data(conf["function"], show_sample=False, run_name=args.run_name)
 
     # noise parameters
     qm = conf["qm"]
@@ -178,7 +185,7 @@ def main(args):
     fit_axis.set_ylabel("y")
     #fit_fig.legend(loc=1, borderaxespad=3)
     if conf["bp_bound"]:
-        pred_bound = np.load(f"{args.example}/cache/pred_bound.npy")
+        pred_bound = np.load(f"{args.example}/{args.run_name}/cache/pred_bound.npy")
         fit_axis.plot(data1, [pred_bound]*len(data), '--', c="black", alpha=0.7, lw=2, label="BP bound")
 
     loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(10,12))
@@ -190,7 +197,7 @@ def main(args):
     loss_grad_axes[1].set_ylabel(r'$\|Grad\|$')
     #loss_grad_fig.legend(loc=1, borderaxespad=3)
     
-    files = os.listdir(f"{args.example}/cache/")
+    files = os.listdir(f"{args.example}/{args.run_name}/cache/")
     settings, mitigation_settings, colors, labels = [], [], [], []
     for f in files:
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
@@ -218,7 +225,7 @@ def main(args):
 
         print(f"> Drawing '{setting}' plot in {color}.")
         print(f"> Loading best parameters from:\n  -> '{args.example}/cache/best_params_{conf['optimizer']}_{setting}.npy'.")
-        best_params = np.load(f"{args.example}/cache/best_params_{conf['optimizer']}_{setting}.npy")
+        best_params = np.load(f"{args.example}/{args.run_name}/cache/best_params_{conf['optimizer']}_{setting}.npy")
         if setting == 'noiseless':
             noise_setting = None
         else:
@@ -256,13 +263,13 @@ def main(args):
         np.save(arr=means, file=f"{args.example}/means_{platform}")
         np.save(arr=stds, file=f"{args.example}/stds_{platform}")
 
-        loss_history = np.load(f"{args.example}/cache/loss_history_{setting}.npy")
+        loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
         print('Minimum loss', np.argmin(loss_history) + 1)
-        grad_history = np.load(f"{args.example}/cache/grad_history_{setting}.npy")
+        grad_history = np.load(f"{args.example}/{args.run_name}/cache/grad_history_{setting}.npy")
 
         if conf["bp_bound"]:
-            loss_bound_history = np.load(f"{args.example}/cache/loss_bound_history_{setting}.npy")
-            grad_bound_history = np.load(f"{args.example}/cache/grad_bound_history_{setting}.npy")
+            loss_bound_history = np.load(f"{args.example}/{args.run_name}/cache/loss_bound_history_{setting}.npy")
+            grad_bound_history = np.load(f"{args.example}/{args.run_name}/cache/grad_bound_history_{setting}.npy")
         else:
             loss_bound_history = 0
             grad_bound_history = 0
@@ -284,9 +291,9 @@ def main(args):
     fit_axis.minorticks_off()
     loss_grad_axes[0].minorticks_off()
     loss_grad_axes[1].minorticks_off()
-    fit_axis.legend(loc=1)
+    fit_axis.legend(loc=2)
     fit_fig.savefig('fits_benchmark.pdf', bbox_inches='tight')
-    loss_grad_axes[1].legend(loc=1)
+    loss_grad_axes[1].legend(loc=9)
     loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
     
 
