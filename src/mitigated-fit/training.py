@@ -63,8 +63,7 @@ else:
 if conf["qibolab"]:
     backend = construct_backend("qibolab", conf["platform"])
 else:
-    backend = construct_backend("qibojit", "numba")
-    backend.set_threads(1)
+    backend = construct_backend("numpy")
     
 readout = {}
 if conf["mitigation"]["readout"] is not None:
@@ -100,6 +99,7 @@ VQR = vqregressor(
     expectation_from_samples=conf["expectation_from_samples"],
     obs_hardware=conf["obs_hardware"],
     backend=backend,
+    nthreads=conf["nthreads"],
     noise_model=noise,
     bp_bound=conf["bp_bound"],
     mitigation=conf["mitigation"],

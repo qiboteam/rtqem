@@ -15,6 +15,8 @@ from savedata_utils import get_training_type
 
 from bp_utils import bound_pred, bound_grad
 
+from joblib import Parallel, delayed
+
 # numpy backend is enough for a 1-qubit model
 # qibo.set_backend('qibolab', platform='tii1q_b1')
 
@@ -28,6 +30,7 @@ class vqregressor:
         example,
         nqubits=1,  
         backend=None,
+        nthreads=1,
         noise_model=None,
         bp_bound=True,
         nshots=1000,
@@ -68,6 +71,7 @@ class vqregressor:
 
             self.backend = GlobalBackend()
 
+        self.nthreads = nthreads
         # initialize the circuit and extract the number of parameters
         self.circuit = self.ansatz(nqubits, layers)
         self.print_model()
@@ -280,7 +284,6 @@ class vqregressor:
 
     # ------------------------ PERFORMING GRADIENT DESCENT -------------------------
     # --------------------------- Parameter Shift Rule -----------------------------
-
     def parameter_shift(self, parameter_index, x):
         """This function performs the PSR for one parameter"""
 
@@ -301,17 +304,18 @@ class vqregressor:
         return result
 
     # ------------------------- Derivative of <O> ----------------------------------
-
     def circuit_derivative(self, x):
         """Derivatives of the expected value of the target observable with respect
         to the variational parameters of the circuit are performed via parameter-shift
         rule (PSR)."""
-        dcirc = np.zeros(self.nparams)
         
-        for par in range(self.nparams):
-            # read qibo documentation for more information about this PSR implementation
-            dcirc[par] = self.parameter_shift(par, x)
-
+        if self.backend.name == 'numpy':
+            dcirc = np.array(Parallel(n_jobs=min(self.nthreads,self.nparams))(delayed(self.parameter_shift)(par,x) for par in range(self.nparams)))
+        else:
+            dcirc = np.zeros(self.nparams)
+            for par in range(self.nparams):
+                # read qibo documentation for more information about this PSR implementation
+                dcirc[par] = self.parameter_shift(par, x)
         return dcirc
 
     # ---------------------- Derivative of the loss function -----------------------
