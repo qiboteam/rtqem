@@ -284,8 +284,6 @@ class vqregressor:
 
     # ------------------------ PERFORMING GRADIENT DESCENT -------------------------
     # --------------------------- Parameter Shift Rule -----------------------------
-    #@delayed
-    #@wrap_non_picklable_objects
     def parameter_shift(self, parameter_index, x):
         """This function performs the PSR for one parameter"""
 
