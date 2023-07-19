@@ -306,7 +306,6 @@ class vqregressor:
         return result
 
     # ------------------------- Derivative of <O> ----------------------------------
-    #@profile
     def circuit_derivative(self, x):
         """Derivatives of the expected value of the target observable with respect
         to the variational parameters of the circuit are performed via parameter-shift
