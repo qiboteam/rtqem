@@ -309,9 +309,6 @@ class vqregressor:
         to the variational parameters of the circuit are performed via parameter-shift
         rule (PSR)."""
         
-        # def wrap(par):
-        #     return self.parameter_shift(par, x)
-        #wrap = partial(self.parameter_shift,x=x)
         if self.backend.name == 'numpy':
             dcirc = np.array(Parallel(n_jobs=min(self.nthreads,self.nparams))(delayed(self.parameter_shift)(par,x) for par in range(self.nparams)))
         else:
