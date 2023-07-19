@@ -16,9 +16,6 @@ from savedata_utils import get_training_type
 from bp_utils import bound_pred, bound_grad
 
 from joblib import Parallel, delayed
-from joblib import wrap_non_picklable_objects
-
-from functools import partial
 
 # numpy backend is enough for a 1-qubit model
 # qibo.set_backend('qibolab', platform='tii1q_b1')
