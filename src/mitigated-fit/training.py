@@ -46,9 +46,9 @@ data, labels, scaler = prepare_data(conf["function"], show_sample=True)
 
 # noise model
 if conf["noise"]:
-    qm = 0.1  
-    paulis = list(product(["I", "X", "Y", "Z"], repeat=nqubits))[1:]
-    probabilities = 0.1*np.random.rand(len(paulis)) / len(paulis)
+    qm = 0.01  
+    paulis = list(product(["I", "X", "Y", "Z"], repeat=1))[1:]
+    probabilities = [5e-3]*len(paulis)
     single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
     readout_matrix = reduce(np.kron, [single_readout_matrix]*nqubits)
     pauli_noise = PauliError(list(zip(paulis, probabilities)))
@@ -80,7 +80,7 @@ if conf["mitigation"]["readout"] is not None:
 
 mit_kwargs = {
     "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-    "CDR": {"n_training_samples": 10, "readout": readout, "N_update": 20, "N_mean": 4},
+    "CDR": {"n_training_samples": 100, "readout": readout, "N_update": 20, "N_mean": 10},
     "vnCDR": {
         "n_training_samples": 10,
         "noise_levels": np.arange(3),
@@ -120,7 +120,7 @@ if conf["optimizer"] == "Adam":
         restart_from_epoch=conf["restart_from_epoch"],
         batchsize=conf["batchsize"],
         method="Adam",
-        J_treshold=2/conf["nshots"],
+        J_treshold=1e-8,
     )
 elif conf["optimizer"] == "CMA":
     VQR.cma_optimization()
@@ -140,7 +140,7 @@ np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.para
 
 if conf["noise"] and conf["bp_bound"] and os.path.exists(f"{cache_dir}/pred_bound") == False:
     params = noise.errors[gates.I][0][1].options
-    probs = [params[k][1] for k in range(4**nqubits-1)]
+    probs = [params[k][1] for k in range(3)]
     bit_flip = noise.errors[gates.M][0][1].options[0,-1]**(1/nqubits)
     bounds = bound_pred(layers, nqubits, probs, bit_flip)
     np.save(f"{cache_dir}/pred_bound", np.array(bounds))

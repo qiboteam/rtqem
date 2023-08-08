@@ -326,10 +326,10 @@ class vqregressor:
 
         if self.noise_model is not None:
             params = self.noise_model.errors[gates.I][0][1].options
-            probs = [params[k][1] for k in range(4**self.nqubits-1)]
+            probs = [params[k][1] for k in range(3)]
             bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]**(1/self.nqubits)
         else:
-            probs = np.zeros(4**self.nqubits-1)
+            probs = np.zeros(3)
             bit_flip = 0
 
         if self.bp_bound:
@@ -625,10 +625,10 @@ class vqregressor:
 
         if self.noise_model is not None:
             params = self.noise_model.errors[gates.I][0][1].options
-            probs = [params[k][1] for k in range(4**self.nqubits-1)]
+            probs = [params[k][1] for k in range(3)]
             bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]**(1/self.nqubits)
         else:
-            probs = np.zeros(4**self.nqubits-1)
+            probs = np.zeros(3)
             bit_flip = 0
 
         if self.bp_bound:
