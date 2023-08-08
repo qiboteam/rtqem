@@ -9,7 +9,7 @@ from itertools import product
 import numpy as np
 from bp_utils import bound_pred, generate_noise_model
 from prepare_data import prepare_data
-from qibo import gates
+from qibo import gates, set_backend
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.noise import DepolarizingError, NoiseModel, PauliError, ReadoutError
@@ -57,10 +57,30 @@ else:
     noise = None
 
 if conf["qibolab"]:
+    def rx_rule(gate, platform):
+        from qibolab.pulses import PulseSequence
+
+        num = int(gate.parameters[0] / (np.pi/2))
+        start = 0
+        sequence = PulseSequence()
+        for _ in range(num):
+            qubit = gate.target_qubits[0]
+            RX90_pulse = platform.create_RX90_pulse(
+                qubit,
+                start=start,
+                relative_phase=0,
+            )
+            sequence.add(RX90_pulse)
+            start = RX90_pulse.finish
+
+        return sequence, {}
+    
     backend = construct_backend("qibolab", conf["platform"])
+    backend.compiler.__setitem__(gates.RX, rx_rule)
+    backend.transpiler = None
 else:
+    set_backend('numpy')
     backend = construct_backend("numpy")
-    backend.set_threads(1)
     
 readout = {}
 if conf["mitigation"]["readout"] is not None:
@@ -96,6 +116,7 @@ VQR = vqregressor(
     expectation_from_samples=conf["expectation_from_samples"],
     obs_hardware=conf["obs_hardware"],
     backend=backend,
+    nthreads=conf["nthreads"],
     noise_model=noise,
     bp_bound=conf["bp_bound"],
     mitigation=conf["mitigation"],
@@ -116,7 +137,7 @@ if conf["optimizer"] == "Adam":
         restart_from_epoch=conf["restart_from_epoch"],
         batchsize=conf["batchsize"],
         method="Adam",
-        J_treshold=2/conf["nshots"],
+        J_treshold=1e-8,
     )
 elif conf["optimizer"] == "CMA":
     VQR.cma_optimization()
@@ -136,7 +157,7 @@ np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.para
 
 if conf["noise"] and conf["bp_bound"] and os.path.exists(f"{cache_dir}/pred_bound") == False:
     params = noise.errors[gates.I][0][1].options
-    probs = [params[k][1] for k in range(4**nqubits-1)]
+    probs = [params[k][1] for k in range(3)]
     bit_flip = noise.errors[gates.M][0][1].options[0,-1]**(1/nqubits)
     bounds = bound_pred(layers, nqubits, probs, bit_flip)
     np.save(f"{cache_dir}/pred_bound", np.array(bounds))

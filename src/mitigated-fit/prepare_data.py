@@ -7,7 +7,7 @@ import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 
-def prepare_data(example:str, show_sample:bool=False, run_name:str=None):
+def prepare_data(example:str, show_sample:bool=False, run_name:str=''):
     """
     Prepare data sample and labels according to example's conf file
     
@@ -18,7 +18,7 @@ def prepare_data(example:str, show_sample:bool=False, run_name:str=None):
     Returns sampled_data, labels, scaler
     """
 
-    if run_name is not None:
+    if run_name != '':
         conf_file = f"{example}/{run_name}/{example}.conf"
     else:
         conf_file = f"{example}/{example}.conf"
