@@ -11,7 +11,7 @@ import scienceplots
 from tqdm import tqdm 
 
 from qibo.noise import NoiseModel, DepolarizingError, ReadoutError, PauliError
-from qibo import gates
+from qibo import gates, set_backend
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.backends import construct_backend
 
@@ -145,9 +145,30 @@ def main(args):
         noise = None
 
     if conf["qibolab"]:
+        def rx_rule(gate, platform):
+            from qibolab.pulses import PulseSequence
+
+            num = int(gate.parameters[0] / (np.pi/2))
+            start = 0
+            sequence = PulseSequence()
+            for _ in range(num):
+                qubit = gate.target_qubits[0]
+                RX90_pulse = platform.create_RX90_pulse(
+                    qubit,
+                    start=start,
+                    relative_phase=0,
+                )
+                sequence.add(RX90_pulse)
+                start = RX90_pulse.finish
+
+            return sequence, {}
+        
         backend = construct_backend("qibolab", conf["platform"])
+        backend.compiler.__setitem__(gates.RX, rx_rule)
+        backend.transpiler = None
     else:
-        backend = construct_backend("qibojit", platform="numba")
+        set_backend('numpy')
+        backend = construct_backend("numpy")
 
     readout = {}
     if conf["mitigation"]["readout"] is not None:
