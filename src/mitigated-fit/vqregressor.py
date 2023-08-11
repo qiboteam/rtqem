@@ -104,10 +104,10 @@ class vqregressor:
                 # decomposition of RY gate
                 c.add(
                     [
-                        gates.RX(q=q, theta=np.pi/2, trainable=False),
+                        gates.GPI2(q=q, theta=0, trainable=False),
                         gates.RZ(q=q, theta=0),
                         gates.RZ(q=q, theta=np.pi, trainable=False),
-                        gates.RX(q=q, theta=np.pi/2, trainable=False),
+                        gates.GPI2(q=q, theta=0, trainable=False),
                         gates.RZ(q=q, theta=np.pi, trainable=False),
                     ]
                 )
@@ -245,7 +245,7 @@ class vqregressor:
                 observable=observable,
                 noise_model=self.noise_model,
                 backend=self.backend,
-                nshots=self.nshots,
+                nshots=self.mit_kwargs['nshots'],
                 full_output=True,
                 **mit_kwargs
             )
