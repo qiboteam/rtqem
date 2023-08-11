@@ -56,27 +56,8 @@ else:
     print("Noisless model is executed.")
     noise = None
 
-if conf["qibolab"]:
-    def rx_rule(gate, platform):
-        from qibolab.pulses import PulseSequence
-
-        num = int(gate.parameters[0] / (np.pi/2))
-        start = 0
-        sequence = PulseSequence()
-        for _ in range(num):
-            qubit = gate.target_qubits[0]
-            RX90_pulse = platform.create_RX90_pulse(
-                qubit,
-                start=start,
-                relative_phase=0,
-            )
-            sequence.add(RX90_pulse)
-            start = RX90_pulse.finish
-
-        return sequence, {}
-    
+if conf["qibolab"]:    
     backend = construct_backend("qibolab", conf["platform"])
-    backend.compiler.__setitem__(gates.RX, rx_rule)
     backend.transpiler = None
 else:
     set_backend('numpy')
@@ -97,7 +78,7 @@ if conf["mitigation"]["readout"] is not None:
 
 mit_kwargs = {
     "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-    "CDR": {"n_training_samples": 10, "readout": readout, "N_update": 25, "N_mean": 5},
+    "CDR": {"n_training_samples": 100, "readout": readout, "N_update": 20, "N_mean": 10, "nshots": 10000},
     "vnCDR": {
         "n_training_samples": 10,
         "noise_levels": np.arange(3),
