@@ -1,13 +1,12 @@
 """ Generate data to be fitted """
 
 import json
-import random
 
 import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 
-def prepare_data(example:str, show_sample:bool=False, run_name:str=''):
+def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_name:str=''):
     """
     Prepare data sample and labels according to example's conf file
     
@@ -61,6 +60,11 @@ def prepare_data(example:str, show_sample:bool=False, run_name:str=''):
             contribute = np.cos(thetas[dim]*data.T[dim])**[dim+1] + ((-1)**dim)*thetas[dim]*data.T[dim]
             labels += contribute
         labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
+
+    if normalize:
+        # normalize labels to be in [0,1]
+        labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
+
     # print in case you want to have a look to the data     
     if show_sample:
         if ndim != 1:

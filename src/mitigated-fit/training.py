@@ -12,7 +12,7 @@ from prepare_data import prepare_data
 from qibo import gates, set_backend
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
-from qibo.noise import DepolarizingError, NoiseModel, PauliError, ReadoutError
+from qibo.noise import NoiseModel, PauliError, ReadoutError
 from savedata_utils import get_training_type
 from uniplot import plot
 from vqregressor import vqregressor
@@ -42,7 +42,7 @@ ndata = conf["ndata"]
 training_type = get_training_type(conf["mitigation"], conf["noise"])
 
 # prepare data
-data, labels, scaler = prepare_data(conf["function"], show_sample=False)
+data, labels, scaler = prepare_data(conf["function"], normalize=conf["normalize_data"], show_sample=False)
 
 # noise parameters
 qm = conf["qm"]
@@ -118,7 +118,8 @@ if conf["optimizer"] == "Adam":
         restart_from_epoch=conf["restart_from_epoch"],
         batchsize=conf["batchsize"],
         method="Adam",
-        J_treshold=1e-8,
+        J_treshold=2/conf["nshots"],
+        xscale=conf["xscale"]
     )
 elif conf["optimizer"] == "CMA":
     VQR.cma_optimization()

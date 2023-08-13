@@ -435,6 +435,7 @@ class vqregressor:
         method="Adam",
         J_treshold=1e-11,
         live_plotting=True,
+        xscale="linear"
     ):
         """
         This function performs a full gradient descent strategy.
@@ -527,7 +528,7 @@ class vqregressor:
                     )
                 elif method == "Standard":
                     grads, loss = self.evaluate_loss_gradients()
-                    self.params -= learning_rate * dloss
+                    self.params -= learning_rate * grads
                 
                 grad_history.append(grads)
                 loss_history.append(loss)
@@ -546,7 +547,7 @@ class vqregressor:
                 )
 
                 if live_plotting:
-                    self.show_predictions(f"Live_predictions", save=True)
+                    self.show_predictions(f"liveshow", save=True, xscale=xscale)
 
             np.save(
                 arr=self.params,
@@ -616,7 +617,7 @@ class vqregressor:
 
     # ---------------------- PLOTTING FUNCTION -------------------------------------
 
-    def show_predictions(self, title, save=False):
+    def show_predictions(self, title, save=False, xscale="linear"):
         """This function shows the obtained results through a scatter plot."""
 
         # calculate prediction
@@ -643,23 +644,24 @@ class vqregressor:
         plt.title(title)
         plt.xlabel("x")
         plt.ylabel("y")
-        plt.scatter(
+        plt.xscale(xscale)
+        plt.plot(
             x_0_array,
             self.labels,
             color="orange",
-            alpha=0.6,
+            alpha=0.7,
             label="Original",
-            s=70,
             marker="o",
+            markersize=10
         )
-        plt.scatter(
+        plt.plot(
             x_0_array,
             predictions,
             color="purple",
-            alpha=0.6,
+            alpha=0.7,
             label="Predictions",
-            s=70,
             marker="o",
+            markersize=10
         )
 
         if self.bp_bound:
