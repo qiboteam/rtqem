@@ -1,10 +1,11 @@
-import os, time
+import os, random
 
 # some useful python package
 import numpy as np
 import matplotlib.pyplot as plt
 
 # import qibo's packages
+import qibo
 from qibo import gates
 from qibo.hamiltonians import Hamiltonian, SymbolicHamiltonian
 from qibo.models import Circuit
@@ -90,6 +91,7 @@ class vqregressor:
             self.mitigation['method'] = getattr(error_mitigation, mitigation['method'])
             self.mit_params = None
 
+        qibo.set_backend("numpy")
         
 
     # ---------------------------- ANSATZ ------------------------------------------
@@ -239,6 +241,7 @@ class vqregressor:
         cdr_data = []
         for _ in range(self.mit_kwargs['N_mean']):
             self.circuit.set_parameters(np.random.uniform(-np.pi,np.pi,int(self.nparams/2)))
+            self.inject_data(self.data[random.randint(0,self.ndata-1)])
             circuit, observable = self.epx_value()
             cdr = self.mitigation['method'](
                 circuit=circuit,
@@ -430,8 +433,9 @@ class vqregressor:
         batchsize=10,
         restart_from_epoch=None,
         method="Adam",
-        J_treshold=1e-5,
+        J_treshold=1e-11,
         live_plotting=True,
+        xscale="linear"
     ):
         """
         This function performs a full gradient descent strategy.
@@ -503,13 +507,14 @@ class vqregressor:
             iteration = 0
 
             # stop the training if the target loss is reached
-            if epoch != 0 and loss_history[-1] < J_treshold:
-                print(
-                    "Desired sensibility is reached, here we stop: ",
-                    iteration,
-                    " iteration",
-                )
-                break
+            if False:
+                if epoch != 0 and loss_history[-1] < J_treshold:
+                    print(
+                        "Desired sensibility is reached, here we stop: ",
+                        iteration,
+                        " iteration",
+                    )
+                    break
 
             # run over the batches
             for data, labels in self.data_loader(batchsize):
@@ -523,7 +528,7 @@ class vqregressor:
                     )
                 elif method == "Standard":
                     grads, loss = self.evaluate_loss_gradients()
-                    self.params -= learning_rate * dloss
+                    self.params -= learning_rate * grads
                 
                 grad_history.append(grads)
                 loss_history.append(loss)
@@ -542,7 +547,7 @@ class vqregressor:
                 )
 
                 if live_plotting:
-                    self.show_predictions(f"Live_predictions", save=True)
+                    self.show_predictions(f"liveshow", save=True, xscale=xscale)
 
             np.save(
                 arr=self.params,
@@ -612,7 +617,7 @@ class vqregressor:
 
     # ---------------------- PLOTTING FUNCTION -------------------------------------
 
-    def show_predictions(self, title, save=False):
+    def show_predictions(self, title, save=False, xscale="linear"):
         """This function shows the obtained results through a scatter plot."""
 
         # calculate prediction
@@ -639,30 +644,31 @@ class vqregressor:
         plt.title(title)
         plt.xlabel("x")
         plt.ylabel("y")
-        plt.scatter(
+        plt.xscale(xscale)
+        plt.plot(
             x_0_array,
             self.labels,
             color="orange",
-            alpha=0.6,
+            alpha=0.7,
             label="Original",
-            s=70,
             marker="o",
+            markersize=10
         )
-        plt.scatter(
+        plt.plot(
             x_0_array,
             predictions,
             color="purple",
-            alpha=0.6,
+            alpha=0.7,
             label="Predictions",
-            s=70,
             marker="o",
+            markersize=10
         )
 
         if self.bp_bound:
             plt.plot(
                 x_0_array,
                 [bounds]*len(x_0_array),
-                color="red",
+                color="black",
                 alpha=0.6,
                 label="BP Bound",
             )

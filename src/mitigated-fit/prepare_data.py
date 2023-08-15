@@ -1,13 +1,12 @@
 """ Generate data to be fitted """
 
 import json
-import random
 
 import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 
-def prepare_data(example:str, show_sample:bool=False):
+def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_name:str=''):
     """
     Prepare data sample and labels according to example's conf file
     
@@ -18,8 +17,13 @@ def prepare_data(example:str, show_sample:bool=False):
     Returns sampled_data, labels, scaler
     """
 
-    with open("{}/{}.conf".format(example, example), "r") as f:
-        conf = json.loads(f.read())
+    if run_name != '':
+        conf_file = f"{example}/{run_name}/{example}.conf"
+    else:
+        conf_file = f"{example}/{example}.conf"
+
+    with open(conf_file, "r") as f:
+        conf = json.load(f)
 
     ndata = conf["ndata"]
     ndim = conf["ndim"]
@@ -56,6 +60,11 @@ def prepare_data(example:str, show_sample:bool=False):
             contribute = np.cos(thetas[dim]*data.T[dim])**[dim+1] + ((-1)**dim)*thetas[dim]*data.T[dim]
             labels += contribute
         labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
+
+    if normalize:
+        # normalize labels to be in [0,1]
+        labels = (labels - np.min(labels)) / (np.max(labels) - np.min(labels))
+
     # print in case you want to have a look to the data     
     if show_sample:
         if ndim != 1:

@@ -7,12 +7,12 @@ from functools import reduce
 from itertools import product
 
 import numpy as np
-from bp_utils import bound_pred
+from bp_utils import bound_pred, generate_noise_model
 from prepare_data import prepare_data
 from qibo import gates, set_backend
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
-from qibo.noise import DepolarizingError, NoiseModel, PauliError, ReadoutError
+from qibo.noise import NoiseModel, PauliError, ReadoutError
 from savedata_utils import get_training_type
 from uniplot import plot
 from vqregressor import vqregressor
@@ -42,22 +42,18 @@ ndata = conf["ndata"]
 training_type = get_training_type(conf["mitigation"], conf["noise"])
 
 # prepare data
-data, labels, scaler = prepare_data(conf["function"], show_sample=True)
+data, labels, scaler = prepare_data(conf["function"], normalize=conf["normalize_data"], show_sample=False)
+
+# noise parameters
+qm = conf["qm"]
+noise_magnitude = conf["noise_magnitude"]
 
 # noise model
 if conf["noise"]:
-    qm = 0.01  
-    paulis = list(product(["I", "X", "Y", "Z"], repeat=1))[1:]
-    probabilities = [5e-3]*len(paulis)
-    single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
-    readout_matrix = reduce(np.kron, [single_readout_matrix]*nqubits)
-    pauli_noise = PauliError(list(zip(paulis, probabilities)))
-    readout_noise = ReadoutError(readout_matrix)
-
-    noise = NoiseModel()
-    noise.add(pauli_noise, gates.I)
-    noise.add(readout_noise, gates.M)
+    print("Generating noise model given noise paramaters.")
+    noise = generate_noise_model(qm=qm, nqubits=nqubits, noise_magnitude=noise_magnitude)
 else:
+    print("Noisless model is executed.")
     noise = None
 
 if conf["qibolab"]:    
@@ -122,7 +118,8 @@ if conf["optimizer"] == "Adam":
         restart_from_epoch=conf["restart_from_epoch"],
         batchsize=conf["batchsize"],
         method="Adam",
-        J_treshold=1e-8,
+        J_treshold=2/conf["nshots"],
+        xscale=conf["xscale"]
     )
 elif conf["optimizer"] == "CMA":
     VQR.cma_optimization()
