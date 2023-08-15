@@ -2,7 +2,7 @@ import numpy as np
 from itertools import product
 
 def get_terms(nqubits):
-    num_terms = 4**nqubits-1
+    num_terms = 3
     terms = [-2]*num_terms
     terms_list = []
     for k in range(num_terms):

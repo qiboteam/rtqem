@@ -11,7 +11,7 @@ import scienceplots
 from tqdm import tqdm 
 
 from qibo.noise import NoiseModel, DepolarizingError, ReadoutError, PauliError
-from qibo import gates
+from qibo import gates, set_backend
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.backends import construct_backend
 
@@ -21,7 +21,7 @@ from vqregressor import vqregressor
 from itertools import product
 from functools import reduce
 
-plt.style.use('science')
+plt.style.use(['science','no-latex'])
 
 mpl.rcParams.update({'font.size': 22})
 mpl.rcParams['xtick.major.size'] = 10
@@ -129,10 +129,10 @@ def main(args):
 
     # noise model
     if conf["noise"]:
-        qm = 0.1
-        probabilities = [0.03,0.03,0.03]
+        qm = 0.01
 
-        paulis = list(product(["I", "X", "Y", "Z"], repeat=conf["nqubits"]))[1:]
+        paulis = list(product(["I", "X", "Y", "Z"], repeat=1))[1:]
+        probabilities = [5e-3]*len(paulis)
         single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
         readout_matrix = reduce(np.kron, [single_readout_matrix]*conf["nqubits"])
         pauli_noise = PauliError(list(zip(paulis, probabilities)))
@@ -144,10 +144,12 @@ def main(args):
     else:
         noise = None
 
-    if conf["qibolab"]:
+    if conf["qibolab"]:        
         backend = construct_backend("qibolab", conf["platform"])
+        backend.transpiler = None
     else:
-        backend = construct_backend("qibojit", platform="numba")
+        set_backend('numpy')
+        backend = construct_backend("numpy")
 
     readout = {}
     if conf["mitigation"]["readout"] is not None:
@@ -164,7 +166,7 @@ def main(args):
 
     mit_kwargs = {
         "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-        "CDR": {"n_training_samples": 10, "readout": readout, "N_update": 1, "N_mean": 1},
+        "CDR": {"n_training_samples": 10, "readout": readout, "N_update": 20, "N_mean": 10},
         "vnCDR": {
             "n_training_samples": 10,
             "noise_levels": np.arange(3),
@@ -192,12 +194,11 @@ def main(args):
         fit_axis.plot(data1, [pred_bound]*len(data), '--', c="green", alpha=0.7, lw=2, label="BP bound")
 
     loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(10,12))
-    plt.rcParams['text.usetex'] = True
     loss_grad_axes[0].set_title('Loss history')
     loss_grad_axes[0].set_ylabel("Loss")
-    loss_grad_axes[1].set_title(r'$\|Grad\|$ history')
+    loss_grad_axes[1].set_title('Grad history')
     loss_grad_axes[1].set_xlabel('Epoch')
-    loss_grad_axes[1].set_ylabel(r'$\|Grad\|$')
+    loss_grad_axes[1].set_ylabel('Grad')
     #loss_grad_fig.legend(loc=1, borderaxespad=3)
     
     files = os.listdir(f"{args.example}/cache/")
@@ -254,6 +255,7 @@ def main(args):
         predictions = []
 
         for _ in tqdm(range(nruns)):
+            VQR.mit_params = None
             predictions.append(VQR.predict_sample())
 
         predictions = np.asarray(predictions)
