@@ -106,10 +106,10 @@ class vqregressor:
                 # decomposition of RY gate
                 c.add(
                     [
-                        gates.GPI2(q=q, theta=0, trainable=False),
+                        gates.GPI2(q=q, phi=0, trainable=False),
                         gates.RZ(q=q, theta=0),
                         gates.RZ(q=q, theta=np.pi, trainable=False),
-                        gates.GPI2(q=q, theta=0, trainable=False),
+                        gates.GPI2(q=q, phi=0, trainable=False),
                         gates.RZ(q=q, theta=np.pi, trainable=False),
                     ]
                 )
