@@ -118,7 +118,7 @@ if conf["optimizer"] == "Adam":
         restart_from_epoch=conf["restart_from_epoch"],
         batchsize=conf["batchsize"],
         method="Adam",
-        J_treshold=2/conf["nshots"],
+        J_treshold=2**conf["nqubits"]/conf["nshots"],
         xscale=conf["xscale"]
     )
 elif conf["optimizer"] == "CMA":
