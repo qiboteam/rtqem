@@ -15,7 +15,7 @@ from qibo.models.error_mitigation import calibration_matrix, CDR
 from qibo.backends import construct_backend
 
 from prepare_data import prepare_data
-from bp_utils import generate_noise_model
+from bp_utils import bound_pred, generate_noise_model
 from vqregressor import vqregressor
 
 
@@ -193,7 +193,10 @@ def main(args):
     fit_axis.set_ylabel("y")
     #fit_fig.legend(loc=1, borderaxespad=3)
     if conf["bp_bound"]:
-        pred_bound = np.load(f"{args.example}/{args.run_name}/cache/pred_bound.npy")
+        params = noise.errors[gates.I][0][1].options
+        probs = [params[k][1] for k in range(3)]
+        bit_flip = noise.errors[gates.M][0][1].options[0,-1]**(1/conf['nqubits'])
+        pred_bound = bound_pred(conf['nlayers'], conf['nqubits'], probs, bit_flip)
         fit_axis.plot(data1, [pred_bound]*len(data), '--', c="black", alpha=0.7, lw=2, label="BP bound")
 
     loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(5, 5*8/6))
@@ -286,6 +289,9 @@ def main(args):
             VQR.mit_params = None
             if label == "Mitigation after training": 
                 predictions.append(np.asarray(VQR.predict_sample())*mit_params[0] + mit_params[1])
+            elif label == 'Real time mitigation': 
+                VQR.mit_params = VQR.get_fit(data)[0]
+                predictions.append(VQR.predict_sample())
             else:
                 predictions.append(VQR.predict_sample())
 
@@ -303,12 +309,9 @@ def main(args):
         print('Minimum loss', np.argmin(loss_history) + 1)
         grad_history = np.load(f"{args.example}/{args.run_name}/cache/grad_history_{setting}.npy")
 
-        if conf["bp_bound"]:
-            loss_bound_history = np.load(f"{args.example}/{args.run_name}/cache/loss_bound_history_{setting}.npy")
-            grad_bound_history = np.load(f"{args.example}/{args.run_name}/cache/grad_bound_history_{setting}.npy")
-        else:
-            loss_bound_history = 0
-            grad_bound_history = 0
+
+        loss_bound_history = 0
+        grad_bound_history = 0
 
         plot(
             fit_axis,

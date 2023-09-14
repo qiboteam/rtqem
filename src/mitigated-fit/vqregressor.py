@@ -235,13 +235,30 @@ class vqregressor:
             obs = np.sqrt(abs(obs))
         return obs
    
-    def get_fit(self):
+    def get_fit(self, x=None):
         mean_params = []
         mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples','readout']}
         cdr_data = []
-        for _ in range(self.mit_kwargs['N_mean']):
-            self.circuit.set_parameters(np.random.uniform(-np.pi,np.pi,int(self.nparams/2)))
-            self.inject_data(self.data[random.randint(0,self.ndata-1)])
+        if x is None:
+            for _ in range(self.mit_kwargs['N_mean']):
+                self.circuit.set_parameters(np.random.uniform(-np.pi,np.pi,int(self.nparams/2)))
+                #self.inject_data(self.data[random.randint(0,self.ndata-1)])
+                circuit, observable = self.epx_value()
+                cdr = self.mitigation['method'](
+                    circuit=circuit,
+                    observable=observable,
+                    noise_model=self.noise_model,
+                    backend=self.backend,
+                    nshots=self.mit_kwargs['nshots'],
+                    full_output=True,
+                    **mit_kwargs
+                )
+                mean_params.append(cdr[2])
+                print(cdr[2])
+                cdr_data.append(cdr)
+            mean_params = np.mean(mean_params,axis=0)
+        else:
+            self.inject_data(x)
             circuit, observable = self.epx_value()
             cdr = self.mitigation['method'](
                 circuit=circuit,
@@ -252,10 +269,9 @@ class vqregressor:
                 full_output=True,
                 **mit_kwargs
             )
-            mean_params.append(cdr[2])
+            mean_params = cdr[2]
             print(cdr[2])
             cdr_data.append(cdr)
-        mean_params = np.mean(mean_params,axis=0)
         return mean_params, cdr_data
 
     def one_mitigated_prediction(self, x):
