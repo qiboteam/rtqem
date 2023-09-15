@@ -187,12 +187,14 @@ class vqregressor:
         if self.obs_hardware:
             circuit.add(gates.Z(*range(self.nqubits)))
             circuit += self.circuit.invert()
-            circuit.add(gates.M(*range(self.nqubits)))
+            #circuit.add(gates.M(*range(self.nqubits)))
+            circuit.add(gates.M(k) for k in range(self.nqubits))
             observable = np.zeros((2**self.nqubits, 2**self.nqubits))
             observable[0, 0] = 1
             observable = Hamiltonian(self.nqubits, observable, backend=self.backend)
         else:
-            circuit.add(gates.M(*range(self.nqubits)))
+            #circuit.add(gates.M(*range(self.nqubits)))
+            circuit.add(gates.M(k) for k in range(self.nqubits))
             observable = SymbolicHamiltonian(
                 np.prod([Z(i) for i in range(self.nqubits)]), backend=self.backend
             )
@@ -346,7 +348,7 @@ class vqregressor:
         if self.noise_model is not None:
             params = self.noise_model.errors[gates.I][0][1].options
             probs = [params[k][1] for k in range(3)]
-            bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]**(1/self.nqubits)
+            bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]#**(1/self.nqubits)
         else:
             probs = np.zeros(3)
             bit_flip = 0
@@ -647,7 +649,7 @@ class vqregressor:
         if self.noise_model is not None:
             params = self.noise_model.errors[gates.I][0][1].options
             probs = [params[k][1] for k in range(3)]
-            bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]**(1/self.nqubits)
+            bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]#**(1/self.nqubits)
         else:
             probs = np.zeros(3)
             bit_flip = 0

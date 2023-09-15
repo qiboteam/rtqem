@@ -9,7 +9,7 @@ from itertools import product
 import numpy as np
 from bp_utils import bound_pred, generate_noise_model
 from prepare_data import prepare_data
-from qibo import gates, set_backend
+from qibo import gates, set_backend, set_threads
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.noise import NoiseModel, PauliError, ReadoutError
@@ -52,6 +52,13 @@ noise_magnitude = conf["noise_magnitude"]
 if conf["noise"]:
     print("Generating noise model given noise paramaters.")
     noise = generate_noise_model(qm=qm, nqubits=nqubits, noise_magnitude=noise_magnitude)
+    if conf["bp_bound"]:
+        params = noise.errors[gates.I][0][1].options
+        probs = [params[k][1] for k in range(3)]
+        bit_flip = noise.errors[gates.M][0][1].options[0,-1]**(1/nqubits)
+        bounds = bound_pred(layers, nqubits, probs, bit_flip)
+        print('bound', bounds)
+        np.save(f"{cache_dir}/pred_bound", np.array(bounds))
 else:
     print("Noisless model is executed.")
     noise = None
@@ -61,7 +68,9 @@ if conf["qibolab"]:
     backend.transpiler = None
 else:
     set_backend('numpy')
-    backend = construct_backend("numpy")
+    #set_threads(5)
+    backend = construct_backend('numpy')
+    #backend.set_threads(5)
     
 readout = {}
 if conf["mitigation"]["readout"] is not None:
@@ -78,7 +87,7 @@ if conf["mitigation"]["readout"] is not None:
 
 mit_kwargs = {
     "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-    "CDR": {"n_training_samples": 100, "readout": readout, "N_update": 20, "N_mean": 10, "nshots": 10000},
+    "CDR": {"n_training_samples": 100, "readout": readout, "N_update": 200, "N_mean": 10, "nshots": 10000},
     "vnCDR": {
         "n_training_samples": 10,
         "noise_levels": np.arange(3),
@@ -136,10 +145,3 @@ print(f"Execution time required: ", (end - start))
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.params)
-
-if conf["noise"] and conf["bp_bound"] and os.path.exists(f"{cache_dir}/pred_bound") == False:
-    params = noise.errors[gates.I][0][1].options
-    probs = [params[k][1] for k in range(3)]
-    bit_flip = noise.errors[gates.M][0][1].options[0,-1]**(1/nqubits)
-    bounds = bound_pred(layers, nqubits, probs, bit_flip)
-    np.save(f"{cache_dir}/pred_bound", np.array(bounds))

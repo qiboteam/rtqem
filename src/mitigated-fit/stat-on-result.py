@@ -195,7 +195,7 @@ def main(args):
     if conf["bp_bound"]:
         params = noise.errors[gates.I][0][1].options
         probs = [params[k][1] for k in range(3)]
-        bit_flip = noise.errors[gates.M][0][1].options[0,-1]**(1/conf['nqubits'])
+        bit_flip = noise.errors[gates.M][0][1].options[0,-1]#**(1/conf['nqubits'])
         pred_bound = bound_pred(conf['nlayers'], conf['nqubits'], probs, bit_flip)
         fit_axis.plot(data1, [pred_bound]*len(data), '--', c="black", alpha=0.7, lw=2, label="BP bound")
 
