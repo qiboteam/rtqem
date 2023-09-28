@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 # import qibo's packages
 import qibo
 from qibo import gates
+from qibo.config import log
 from qibo.hamiltonians import Hamiltonian, SymbolicHamiltonian
 from qibo.models import Circuit
 from qibo.models import error_mitigation
@@ -78,7 +79,7 @@ class vqregressor:
         self.print_model()
 
         # get the number of parameters
-        self.nparams = (nqubits * layers * 4) - 2 * nqubits
+        self.nparams = (nqubits * layers * 4) #- 2 * nqubits
         # set the initial value of the variational parameters
         np.random.seed(1234)
         self.params = np.random.randn(self.nparams)
@@ -114,11 +115,12 @@ class vqregressor:
                     ]
                 )
                 # add RZ if this is not the last layer
-                if l != self.layers - 1:
-                    c.add(gates.RZ(q=q, theta=0))
+                #if l != self.layers - 1:
+                c.add(gates.RZ(q=q, theta=0))
             
             # add entangling layer between layers
-            if (l != self.layers - 1) and (self.nqubits > 1):
+            #if (l != self.layers - 1) and (self.nqubits > 1):
+            if (self.nqubits > 1):
                 for q in range(0, nqubits-1, 1):
                     c.add(gates.CNOT(q0=q, q1=q+1))
                 c.add(gates.CNOT(q0=nqubits-1, q1=0))
@@ -135,7 +137,6 @@ class vqregressor:
         """Here we combine x and params in order to perform re-uploading."""
         params = []
         index = 0
-
         # make it work also if x is 1d
         x = np.atleast_1d(x)
 
@@ -151,11 +152,11 @@ class vqregressor:
                 self.scale_factors[index] = self.scaler(x[q])
 
                 # add RZ if this is not the last layer
-                if l != self.layers - 1:
-                    params.append(self.params[index + 2] * x[q] + self.params[index + 3])
-                    self.scale_factors[index + 2] = x[q]
-                    # we have four parameters per layer
-                    index += 4
+                #if l != self.layers - 1:
+                params.append(self.params[index + 2] * x[q] + self.params[index + 3])
+                self.scale_factors[index + 2] = x[q]
+                # we have four parameters per layer
+                index += 4
 
         # update circuit's parameters
         self.circuit.set_parameters(params)
@@ -555,13 +556,14 @@ class vqregressor:
                     loss_bound_history.append(loss_bound)
 
                 # track the training
-                print(
-                    "Iteration ",
-                    iteration,
-                    " epoch ",
-                    epoch + 1,
-                    " | loss: ",
-                    loss,
+                #print(
+                log.info(
+                    "Iteration "+
+                    str(iteration)+
+                    " epoch "+
+                    str(epoch + 1)+
+                    " | loss: "+
+                    str(loss)
                 )
 
                 if live_plotting:

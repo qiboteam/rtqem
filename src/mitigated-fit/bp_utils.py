@@ -20,7 +20,7 @@ def get_terms(nqubits):
 def bound_pred(L, nqubits, probs, bit_flip = 0):
     obs_sign_list = get_terms(nqubits)
     qm = 1 - 2*bit_flip
-    tr_distance = 1#2*(1-1/2**nqubits)
+    tr_distance = 2*(1-1/2**nqubits)
     N0 = 1
     w_inf = 1
     qs = []
@@ -58,9 +58,7 @@ def generate_noise_model(qm, nqubits, noise_magnitude):
     paulis = list(product(["I", "X", "Y", "Z"], repeat=1))[1:]
     probabilities = np.repeat(noise_magnitude, repeats=len(paulis)) 
     single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
-    #readout_matrix = reduce(np.kron, [single_readout_matrix]*nqubits)
     pauli_noise = PauliError(list(zip(paulis, probabilities)))
-    #readout_noise = ReadoutError(readout_matrix)
     readout_noise = ReadoutError(single_readout_matrix)
 
     noise = NoiseModel()

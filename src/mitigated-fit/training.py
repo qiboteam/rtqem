@@ -55,7 +55,7 @@ if conf["noise"]:
     if conf["bp_bound"]:
         params = noise.errors[gates.I][0][1].options
         probs = [params[k][1] for k in range(3)]
-        bit_flip = noise.errors[gates.M][0][1].options[0,-1]**(1/nqubits)
+        bit_flip = noise.errors[gates.M][0][1].options[0,-1]
         bounds = bound_pred(layers, nqubits, probs, bit_flip)
         print('bound', bounds)
         np.save(f"{cache_dir}/pred_bound", np.array(bounds))

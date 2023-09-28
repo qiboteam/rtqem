@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # import scienceplots
 
 from tqdm import tqdm 
-
+from qibo.config import log
 from qibo import gates, set_backend
 from qibo.models.error_mitigation import calibration_matrix, CDR
 from qibo.backends import construct_backend
@@ -17,8 +17,10 @@ from qibo.backends import construct_backend
 from prepare_data import prepare_data
 from bp_utils import bound_pred, generate_noise_model
 from vqregressor import vqregressor
+from joblib import Parallel, delayed
+import qibo
 
-
+qibo.set_backend('numpy')
 # plt.style.use(['science','no-latex'])
 
 # mpl.rcParams.update({'font.size': 13})
@@ -90,22 +92,22 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_h
         loss_grad_axes[0].set_yscale('log')
         loss_grad_axes[1].set_yscale('log')
         loss_grad_axes[1].plot(
-            np.max(np.sqrt((grad_history*grad_history)),axis=-1), 
+            np.mean(np.sqrt((grad_history*grad_history)),axis=-1), 
             c=color,
             lw=2,
             alpha=0.7,
             label=label)
-        if type(loss_history) == np.ndarray and type(loss_bound_history) == np.ndarray:
-            if label == "No mitigation":
-                loss_grad_axes[0].plot(loss_bound_history, '--', c='black', lw=2, alpha=0.7, label='BP bound')
-            elif label == "Exact":
-                loss_grad_axes[1].plot(
-                    grad_bound_history, 
-                    '--',
-                    c='black',
-                    lw=2,
-                    alpha=0.7,
-                    label='BP bound')
+        #if type(loss_history) == np.ndarray and type(loss_bound_history) == float:
+        # if label == "No mitigation":
+        #     loss_grad_axes[0].plot([loss_bound_history]*len(loss_history), '--', c='black', lw=2, alpha=0.7, label='BP bound')
+            # elif label == "Exact":
+            #     loss_grad_axes[1].plot(
+            #         grad_bound_history, 
+            #         '--',
+            #         c='black',
+            #         lw=2,
+            #         alpha=0.7,
+            #         label='BP bound')
     
     #loss_grad_fig.legend(loc=1, borderaxespad=3)
     #loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
@@ -186,12 +188,13 @@ def main(args):
     else:
         data1 = data
 
-    fit_fig , fit_axis = plt.subplots(1, 1, figsize=(5, 5*6/8))
+    fit_fig , fit_axis = plt.subplots(1, 1, figsize=(5*2/3, 5*(6/8)*2/3))
     fit_axis.plot(data1, labels, c="black", lw=2, alpha=0.8, label="Target function")
     fit_axis.set_title("Statistics on results")
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
     #fit_fig.legend(loc=1, borderaxespad=3)
+    loss_bound_history = 0
     if conf["bp_bound"]:
         params = noise.errors[gates.I][0][1].options
         probs = [params[k][1] for k in range(3)]
@@ -199,7 +202,14 @@ def main(args):
         pred_bound = bound_pred(conf['nlayers'], conf['nqubits'], probs, bit_flip)
         fit_axis.plot(data1, [pred_bound]*len(data), '--', c="black", alpha=0.7, lw=2, label="BP bound")
 
-    loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(5, 5*8/6))
+        loss_bound_history = 0
+        for y in labels:
+            if y - pred_bound > 0:
+                loss_bound_history += (y - pred_bound)**2
+        loss_bound_history /= len(labels)
+        log.info(str(loss_bound_history))
+
+    loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(5*2/3, 5*(8/6)*2/3))
     loss_grad_axes[0].set_title('Loss history')
     loss_grad_axes[0].set_ylabel("Loss")
     loss_grad_axes[1].set_title('Grad history')
@@ -222,7 +232,7 @@ def main(args):
             labels.append('No mitigation')
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
-            mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
+            mitigation_settings.append({"step":False,"final":True,"method":"CDR","readout":None})
             colors.append('orange')
             labels.append('Mitigation after training')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
@@ -265,52 +275,65 @@ def main(args):
 
         predictions = []
 
-        if label == "Mitigation after training":
+        # if label == "Mitigation after training" or label=='Real time mitigation':
             
-            circuit, observable = VQR.epx_value()
-            mit_params = []
+        #     circuit, observable = VQR.epx_value()
+        #     mit_params = []
 
-            for _ in range(mit_kwargs["CDR"]["N_mean"]):
-                circuit.set_parameters(np.random.randn(len(circuit.get_parameters())))
-                _, _, params, _ = CDR(
-                    circuit = circuit,
-                    observable = observable,
-                    n_training_samples = mit_kwargs["CDR"]["n_training_samples"],
-                    nshots = 10000,
-                    noise_model = noise_setting,
-                    full_output = True
-                )
-                mit_params.append(params)
+        #     for _ in range(mit_kwargs["CDR"]["N_mean"]):
+        #         circuit.set_parameters(np.random.randn(len(circuit.get_parameters())))
+        #         _, _, params, _ = CDR(
+        #             circuit = circuit,
+        #             observable = observable,
+        #             n_training_samples = mit_kwargs["CDR"]["n_training_samples"],
+        #             nshots = 10000,
+        #             noise_model = noise_setting,
+        #             full_output = True
+        #         )
+        #         mit_params.append(params)
             
-            mit_params = np.mean(mit_params, axis=0)
-            print(mit_params)
+        #     mit_params = np.mean(mit_params, axis=0)
+        #     print(mit_params)
 
-        for _ in tqdm(range(nruns)):
+        # for _ in tqdm(range(nruns)):
+        #     VQR.mit_params = None
+        #     if label == "Mitigation after training": 
+        #         predictions.append(np.asarray(VQR.predict_sample())*mit_params[0] + mit_params[1])
+        #     elif label == 'Real time mitigation': 
+        #         #VQR.mit_params = VQR.get_fit(data)[0]
+        #         predictions.append(VQR.predict_sample())
+        #     else:
+        #         predictions.append(VQR.predict_sample())
+
+        # predictions = np.asarray(predictions)
+
+        def get_pred(j):
+            set_backend('numpy')
             VQR.mit_params = None
-            if label == "Mitigation after training": 
-                predictions.append(np.asarray(VQR.predict_sample())*mit_params[0] + mit_params[1])
-            elif label == 'Real time mitigation': 
-                VQR.mit_params = VQR.get_fit(data)[0]
-                predictions.append(VQR.predict_sample())
-            else:
-                predictions.append(VQR.predict_sample())
+            # if label == "Mitigation after training" or label=='Real time mitigation': 
+            #     pred = np.asarray(VQR.predict_sample())*mit_params[0] + mit_params[1]
+            # else: 
+            pred = VQR.predict_sample()
+            return pred
 
-        predictions = np.asarray(predictions)
+        pred = Parallel(n_jobs=min(conf["nthreads"],nruns))(delayed(get_pred)(j) for j in range(nruns))
+
+        predictions = np.asarray(pred)
 
         means = predictions.mean(0)
         stds = predictions.std(0)
         
         
         # TO DO: ADD FUNCTION WHICH CLASSIFIES THE TRAINING
-        np.save(arr=means, file=f"{args.example}/means_{platform}")
-        np.save(arr=stds, file=f"{args.example}/stds_{platform}")
+        np.save(arr=means, file=f"{args.example}/{args.run_name}/means_{platform}_{setting}")
+        np.save(arr=stds, file=f"{args.example}/{args.run_name}/stds_{platform}_{setting}")
 
         loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
         print('Minimum loss', np.argmin(loss_history) + 1)
         grad_history = np.load(f"{args.example}/{args.run_name}/cache/grad_history_{setting}.npy")
 
 
-        loss_bound_history = 0
+        #loss_bound_history = 0
         grad_bound_history = 0
 
         plot(
@@ -330,10 +353,11 @@ def main(args):
     fit_axis.minorticks_off()
     loss_grad_axes[0].minorticks_off()
     loss_grad_axes[1].minorticks_off()
-    fit_axis.legend(loc=3)
+    #fit_axis.legend(loc=3,fontsize="7.5") #uncomment
     fit_axis.set_xscale(conf["xscale"])
     fit_fig.savefig(f"{args.example}/{args.run_name}/fits_benchmark.pdf", bbox_inches='tight')
-    loss_grad_axes[0].legend(loc=1)
+    #loss_grad_axes[0].legend(loc=1,fontsize="7.5") #uncomment
+    loss_grad_fig.tight_layout()
     loss_grad_fig.savefig(f"{args.example}/{args.run_name}/gradients_analysis.pdf", bbox_inches='tight')
     
 
