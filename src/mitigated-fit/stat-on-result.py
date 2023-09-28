@@ -271,6 +271,7 @@ def main(args):
             mit_kwargs=mit_kwargs[mitigation["method"]],
             scaler=scaler,
         )
+
         VQR.set_parameters(best_params)
 
         predictions = []
@@ -325,12 +326,15 @@ def main(args):
         
         
         # TO DO: ADD FUNCTION WHICH CLASSIFIES THE TRAINING
-        np.save(arr=means, file=f"{args.example}/{args.run_name}/means_{platform}_{setting}")
-        np.save(arr=stds, file=f"{args.example}/{args.run_name}/stds_{platform}_{setting}")
 
         loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
         print('Minimum loss', np.argmin(loss_history) + 1)
         grad_history = np.load(f"{args.example}/{args.run_name}/cache/grad_history_{setting}.npy")
+
+        if label == 'Mitigation after training':
+            setting = "unmitigated_step_no_final_yes"
+        np.save(arr=means, file=f"{args.example}/{args.run_name}/means_{platform}_{setting}")
+        np.save(arr=stds, file=f"{args.example}/{args.run_name}/stds_{platform}_{setting}")
 
 
         #loss_bound_history = 0
