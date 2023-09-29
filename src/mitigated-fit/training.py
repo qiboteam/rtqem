@@ -14,7 +14,7 @@ from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.noise import NoiseModel, PauliError, ReadoutError
 from savedata_utils import get_training_type
-from uniplot import plot
+#from uniplot import plot
 from vqregressor import vqregressor
 
 parser = argparse.ArgumentParser(description="Training the vqregressor")
@@ -87,7 +87,7 @@ if conf["mitigation"]["readout"] is not None:
 
 mit_kwargs = {
     "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-    "CDR": {"n_training_samples": 100, "readout": readout, "N_update": 200, "N_mean": 10, "nshots": 10000},
+    "CDR": {"n_training_samples": 100, "readout": readout, "N_update": 10, "N_mean": 10, "nshots": 10000},
     "vnCDR": {
         "n_training_samples": 10,
         "noise_levels": np.arange(3),
@@ -107,7 +107,7 @@ VQR = vqregressor(
     obs_hardware=conf["obs_hardware"],
     backend=backend,
     nthreads=conf["nthreads"],
-    noise_model=noise,
+    noise_model=[noise, conf["noise_update"]],
     bp_bound=conf["bp_bound"],
     mitigation=conf["mitigation"],
     mit_kwargs=mit_kwargs[conf["mitigation"]["method"]],
@@ -136,7 +136,7 @@ end = time.time()
 
 predictions = VQR.predict_sample()
 
-plot([labels, predictions], legend_labels=["target", "predictions"])
+#plot([labels, predictions], legend_labels=["target", "predictions"])
 
 print(f"Execution time required: ", (end - start))
 

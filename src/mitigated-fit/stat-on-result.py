@@ -265,7 +265,7 @@ def main(args):
             backend=backend,
             nshots=conf["nshots"],
             expectation_from_samples=conf["expectation_from_samples"],
-            noise_model=noise_setting,
+            noise_model=[noise_setting,None],
             bp_bound=conf["bp_bound"],
             mitigation=mitigation,
             mit_kwargs=mit_kwargs[mitigation["method"]],
