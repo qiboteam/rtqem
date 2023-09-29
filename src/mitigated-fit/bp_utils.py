@@ -55,8 +55,8 @@ def generate_noise_model(qm, nqubits, noise_magnitude):
     Returns: `qibo.model.noise`
     """
 
-    paulis = list(product(["I", "X", "Y", "Z"], repeat=1))[1:]
-    probabilities = np.repeat(noise_magnitude, repeats=len(paulis)) 
+    paulis = list(product(["I", "X", "Y", "Z"], repeat=nqubits))[1:]
+    probabilities = np.repeat(noise_magnitude**nqubits, repeats=len(paulis)) 
     single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
     pauli_noise = PauliError(list(zip(paulis, probabilities)))
     readout_noise = ReadoutError(single_readout_matrix)

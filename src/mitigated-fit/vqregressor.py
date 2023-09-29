@@ -101,10 +101,9 @@ class vqregressor:
     def ansatz(self, nqubits, layers):
         """Here we implement the variational model ansatz."""
         c = Circuit(nqubits, density_matrix=True)
-
+        c.add(gates.I(*range(nqubits)))
         for l in range(layers):
             for q in range(nqubits):
-                c.add(gates.I(q))
                 # decomposition of RY gate
                 c.add(
                     [
@@ -126,8 +125,8 @@ class vqregressor:
                     c.add(gates.CNOT(q0=q, q1=q+1))
                 c.add(gates.CNOT(q0=nqubits-1, q1=0))
 
-        for q in range(nqubits):
-            c.add(gates.I(q))
+        
+            c.add(gates.I(*range(nqubits)))
 
         return c
     
@@ -660,7 +659,7 @@ class vqregressor:
 
         if self.noise_model is not None:
             params = self.noise_model.errors[gates.I][0][1].options
-            probs = [params[k][1] for k in range(3)]
+            probs = [params[k][1] for k in range(4**self.nqubits-1)]
             bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]#**(1/self.nqubits)
         else:
             probs = np.zeros(3)
