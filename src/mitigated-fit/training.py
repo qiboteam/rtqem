@@ -14,7 +14,7 @@ from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
 from qibo.noise import NoiseModel, PauliError, ReadoutError
 from savedata_utils import get_training_type
-from uniplot import plot
+#from uniplot import plot
 from vqregressor import vqregressor
 
 parser = argparse.ArgumentParser(description="Training the vqregressor")
@@ -136,7 +136,7 @@ end = time.time()
 
 predictions = VQR.predict_sample()
 
-plot([labels, predictions], legend_labels=["target", "predictions"])
+#plot([labels, predictions], legend_labels=["target", "predictions"])
 
 print(f"Execution time required: ", (end - start))
 
