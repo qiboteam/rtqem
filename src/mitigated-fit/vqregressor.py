@@ -15,7 +15,7 @@ from qibo.symbols import Z
 
 from savedata_utils import get_training_type
 
-from bp_utils import bound_pred, bound_grad
+from bp_utils import bound_pred, bound_grad, generate_noise_model
 
 from joblib import Parallel, delayed
 
@@ -58,7 +58,8 @@ class vqregressor:
         self.labels = labels
         self.ndata = len(labels)
         self.backend = backend
-        self.noise_model = noise_model
+        self.noise_model = noise_model[0]
+        self.noise_update = noise_model[1]
         self.bp_bound = bp_bound
         self.nshots = nshots
         self.exp_from_samples = expectation_from_samples
@@ -225,6 +226,7 @@ class vqregressor:
         self.inject_data(x)
         circuit, observable = self.epx_value()
         if self.noise_model != None:
+            #print(self.noise_model.errors[gates.I][0][1].options[0][1])
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
@@ -518,6 +520,14 @@ class vqregressor:
 
         # cycle over the epochs
         for epoch in range(epochs):
+
+            if epoch%self.noise_update == 0 and epoch != 0:
+                rand = np.random.uniform(-0.1, 0.1)
+                qm = (1+rand)*self.noise_model.errors[gates.M][0][1].options[0,-1]
+                rand = np.random.uniform(-0.1, 0.1)
+                noise_magnitude = (1+rand)*self.noise_model.errors[gates.I][0][1].options[0][1]
+                self.noise_model = generate_noise_model(qm=qm, nqubits=1, noise_magnitude=noise_magnitude)
+
 
             if self.mitigation['step'] is True and epoch%self.mit_kwargs['N_update']==0:   
                 self.mit_params, cdr_data = self.get_fit()
