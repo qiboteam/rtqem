@@ -2,10 +2,12 @@ import argparse
 import random
 import json
 import os
-import scipy
 import numpy as np
 from prepare_data import prepare_data
 import matplotlib.pyplot as plt
+
+import scienceplots
+plt.style.use('science')
 
 platforms = ["sim", "tii1q_b1"]
 colors = ["blue", "red"]
@@ -34,8 +36,21 @@ parser.add_argument(
     type=str,
 )
 
+parser.add_argument(
+    "--legends",
+    default="true",
+    help="Set true if legends are desired in the plots, false if not.",
+    type=str,
+)
 
-def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history, color, label):
+parser.add_argument(
+    "--linewidth",
+    default=0.5,
+    help="Manuscript linewidth occupied by the plot.",
+    type=float,
+)
+
+def plot(fit_axis, loss_axis, grad_axis, data, means, stds, loss_history, grad_history, color, label):
 
     global ndata, nruns
     
@@ -43,23 +58,25 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, grad_history
         data = data.T[0]
 
     # plot results
-    fit_axis.plot(data, means, c=color, alpha=0.7, lw=2, label=label)
+    fit_axis.plot(data, means, c=color, alpha=0.8, lw=1.5, label=label)
     fit_axis.fill_between(
         data,
         means - stds,
         means + stds,
-        alpha=0.2,
+        alpha=0.3,
         hatch="//",
         color=color,
     )
     if label != "Mitigation after training":
-        loss_grad_axes[0].plot(loss_history, c=color, lw=2, alpha=0.7, label=label)
-        loss_grad_axes[0].set_yscale('log')
-        loss_grad_axes[1].set_yscale('log')
-        loss_grad_axes[1].plot(
+        # plot loss history
+        loss_axis.plot(loss_history, c=color, lw=1.5, alpha=0.8, label=label)
+        loss_axis.set_yscale('log')
+        # plot grad history
+        grad_axis.set_yscale('log')
+        grad_axis.plot(
             np.mean(np.sqrt((grad_history*grad_history)),axis=-1), 
             c=color,
-            lw=2,
+            lw=1.5,
             alpha=0.7,
             label=label)
 
@@ -74,9 +91,10 @@ def main(args):
     platform = conf["platform"]
 
     files = os.listdir(f"{args.example}/{args.run_name}/cache/")
+    width = args.linewidth
 
 
-    data, labels, scaler = prepare_data(
+    data, labels, _ = prepare_data(
         conf["function"], 
         show_sample=False,
         normalize=conf["normalize_data"], 
@@ -88,18 +106,21 @@ def main(args):
     else:
         data1 = data
 
-    fit_fig , fit_axis = plt.subplots(1, 1, figsize=(5*2/3, 5*(6/8)*2/3))
-    fit_axis.plot(data1, labels, c="black", lw=2, alpha=0.8, label="Target function")
-    fit_axis.set_title("Statistics on results")
+    fit_fig , fit_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
+    fit_axis.plot(data1, labels, c="black", lw=1.5, alpha=0.8, label="Target function")
+    fit_axis.set_title(fr"Simulated fit", fontsize=12)
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
 
-    loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(5*2/3, 5*(8/6)*2/3))
-    loss_grad_axes[0].set_title('Loss history')
-    loss_grad_axes[0].set_ylabel("Loss")
-    loss_grad_axes[1].set_title('Grad history')
-    loss_grad_axes[1].set_xlabel('Epoch')
-    loss_grad_axes[1].set_ylabel('Grad')
+    loss_fig , loss_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
+    loss_axis.set_title(fr'Loss history', fontsize=12)
+    loss_axis.set_xlabel('Epoch')
+    loss_axis.set_ylabel("Loss")
+
+    grad_fig , grad_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
+    grad_axis.set_title(fr'Grad history', fontsize=12)
+    grad_axis.set_xlabel('Epoch')
+    grad_axis.set_ylabel('Grad')
 
 
     settings, colors, labels = [], [], []
@@ -107,11 +128,11 @@ def main(args):
     for f in files:
         if f"best_params_{conf['optimizer']}_noiseless" in f:
             settings.append("noiseless")
-            colors.append('green')
+            colors.append('#44c24d')
             labels.append('Noiseless')
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
-            colors.append('blue')
+            colors.append('#4287f5')
             labels.append('No mitigation')
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
@@ -119,7 +140,7 @@ def main(args):
             labels.append('Mitigation after training')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
-            colors.append('red')
+            colors.append('#f54242')
             labels.append('Real time mitigation')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
@@ -137,7 +158,8 @@ def main(args):
     
         plot(
             fit_axis,
-            loss_grad_axes,
+            loss_axis,
+            grad_axis,
             data,
             means,
             stds,
@@ -148,19 +170,21 @@ def main(args):
         )
 
     fit_axis.minorticks_off()
-    loss_grad_axes[0].minorticks_off()
-    loss_grad_axes[1].minorticks_off()
-    fit_axis.legend(loc=3,fontsize="7.5") #uncomment
-    fit_axis.set_xscale(conf["xscale"])
-    fit_fig.savefig(f"{args.example}/{args.run_name}/fits_benchmark.pdf", bbox_inches='tight')
-    loss_grad_axes[0].legend(loc=1,fontsize="7.5") #uncomment
-    loss_grad_fig.tight_layout()
-    loss_grad_fig.savefig(f"{args.example}/{args.run_name}/gradients_analysis.pdf", bbox_inches='tight')
+    loss_axis.minorticks_off()
+    grad_axis.minorticks_off()
 
+    if args.legends == "true":
+        fit_axis.legend(loc=3, fontsize=7) 
+        loss_axis.legend(loc=1, fontsize=7)
+
+    fit_axis.set_xscale(conf["xscale"])
+    fit_fig.savefig(f"{args.example}/{args.run_name}/{args.run_name}.pdf", bbox_inches='tight', dpi=200)
+    loss_fig.savefig(f"{args.example}/{args.run_name}/{args.run_name}_loss.pdf", bbox_inches='tight', dpi=200)
+    grad_fig.savefig(f"{args.example}/{args.run_name}/{args.run_name}_grad.pdf", bbox_inches='tight', dpi=200)
 
 
 if __name__ == "__main__":
-    args = parser.parse_args()
+    args = parser.parse_args()  
     if args.example[-1] == "/":
         args.example = args.example[:-1]
     cache_dir = f"{args.example}/cache/"
