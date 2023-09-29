@@ -7,7 +7,7 @@ from qibo.noise import NoiseModel, PauliError, ReadoutError
 from qibo import gates
 
 def get_terms(nqubits):
-    num_terms = 3
+    num_terms = 4**nqubits-1
     terms = [-2]*num_terms
     terms_list = []
     for k in range(num_terms):
@@ -56,6 +56,7 @@ def generate_noise_model(qm, nqubits, noise_magnitude):
     """
 
     paulis = list(product(["I", "X", "Y", "Z"], repeat=nqubits))[1:]
+    noise_magnitude = (1-(1-3*noise_magnitude)**nqubits)/(4**nqubits-1)
     probabilities = np.repeat(noise_magnitude**nqubits, repeats=len(paulis)) 
     single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
     pauli_noise = PauliError(list(zip(paulis, probabilities)))

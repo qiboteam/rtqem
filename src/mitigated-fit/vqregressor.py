@@ -525,7 +525,7 @@ class vqregressor:
                 qm = (1+rand)*self.noise_model.errors[gates.M][0][1].options[0,-1]
                 rand = np.random.uniform(-0.1, 0.1)
                 noise_magnitude = (1+rand)*self.noise_model.errors[gates.I][0][1].options[0][1]
-                self.noise_model = generate_noise_model(qm=qm, nqubits=1, noise_magnitude=noise_magnitude)
+                self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
 
 
             if self.mitigation['step'] is True and epoch%self.mit_kwargs['N_update']==0:   
