@@ -427,9 +427,9 @@ class vqregressor:
         v = beta_2 * v + (1 - beta_2) * grads * grads
         mhat = m / (1.0 - beta_1 ** (iteration + 1))
         vhat = v / (1.0 - beta_2 ** (iteration + 1))
-        self.params -= learning_rate * mhat / (np.sqrt(vhat) + epsilon)
+        params = self.params - learning_rate * mhat / (np.sqrt(vhat) + epsilon)
 
-        return m, v, loss, grads, dloss_bound, loss_bound
+        return m, v, loss, grads, dloss_bound, loss_bound, params
 
     def data_loader(self, batchsize):
         """Returns a random batch of data with their labels"""
@@ -519,19 +519,37 @@ class vqregressor:
             v = np.zeros(self.nparams)
 
         # cycle over the epochs
-        for epoch in range(epochs):
+        np.random.seed(135)
+        rands = np.random.uniform(-0.1, 0.1, epochs)
+        check_noise=[]
+        init_params = self.params
+        for epoch in range(epochs):   
 
             if epoch%self.noise_update == 0 and epoch != 0:
-                rand = np.random.uniform(-0.1, 0.1)
-                qm = (1+rand)*self.noise_model.errors[gates.M][0][1].options[0,-1]
-                rand = np.random.uniform(-0.1, 0.1)
-                noise_magnitude = (1+rand)*self.noise_model.errors[gates.I][0][1].options[0][1]
+                qm = self.noise_model.errors[gates.M][0][1].options[0,-1]
+                noise_magnitude = self.noise_model.errors[gates.I][0][1].options[0][1]
+                qm = (1+rands[epoch])*qm
+                noise_magnitude = (1+rands[epoch])*noise_magnitude
                 self.noise_model = generate_noise_model(qm=qm, nqubits=1, noise_magnitude=noise_magnitude)
+                
+            self.params = init_params
+            check_noise.append(self.one_prediction([0]*self.nqubits))
+            if epoch != 0:
+                self.params = new_params
+                eps = abs((check_noise[epoch] - check_noise[epoch-1])/check_noise[epoch])
+                if eps > 1e-5:
+                    log.info('Updating CDR params')
+                    log.info(str(eps))
+                    self.mit_params, cdr_data = self.get_fit()
+                    cdr_history.append(cdr_data)
 
-
-            if self.mitigation['step'] is True and epoch%self.mit_kwargs['N_update']==0:   
-                self.mit_params, cdr_data = self.get_fit()
-                cdr_history.append(cdr_data)
+            # if self.mit_kwargs['N_update']!=0:
+            #     if self.mitigation['step'] is True and epoch%self.mit_kwargs['N_update']==0:   
+            #         self.mit_params, cdr_data = self.get_fit()
+            #         cdr_history.append(cdr_data)
+            #     elif epoch == epochs-1:
+            #         self.mit_params, cdr_data = self.get_fit()
+            #         cdr_history.append(cdr_data)
 
             iteration = 0
 
@@ -552,9 +570,10 @@ class vqregressor:
 
                 # update parameters using the chosen method
                 if method == "Adam":
-                    m, v, loss, grads, dloss_bound, loss_bound = self.apply_adam(
+                    m, v, loss, grads, dloss_bound, loss_bound, new_params = self.apply_adam(
                         learning_rate, m, v, data, labels, iteration
                     )
+                    self.params = new_params
                 elif method == "Standard":
                     grads, loss = self.evaluate_loss_gradients()
                     self.params -= learning_rate * grads
@@ -606,7 +625,7 @@ class vqregressor:
         if self.bp_bound:
             np.save(arr=np.asarray(grad_bound_history), file=f"{cache_dir}/grad_bound_history_{train_type}")
             np.save(arr=np.asarray(loss_bound_history), file=f"{cache_dir}/loss_bound_history_{train_type}")
-        if self.mitigation['step'] is True:
+        if self.mitigation['step'] is True and self.mit_kwargs['N_update']!=0:
             np.save(arr=np.asanyarray(cdr_data, dtype=object), file=f"{cache_dir}/cdr_history_{train_type}")
 
         return loss_history
