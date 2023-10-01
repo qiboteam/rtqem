@@ -273,26 +273,26 @@ def main(args):
             mit_kwargs=mit_kwargs[mitigation["method"]],
             scaler=scaler,
         )
+        #Noise evolution
+        VQR.mit_params = VQR.get_fit()[0]
 
-        # VQR.mit_params = VQR.get_fit()[0]
-
-        # def get_loss(j):
-        #     best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_realtime_mitigation_step_yes_final_yes/params_epoch_{j+1}.npy")
-        #     VQR.set_parameters(best_params)
-        #     return VQR.loss()
+        def get_loss(j):
+            best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_realtime_mitigation_step_yes_final_yes/params_epoch_{j+1}.npy")
+            VQR.set_parameters(best_params)
+            return VQR.loss()
 
 
-        # loss_history = Parallel(n_jobs=min(conf["epochs"],25))(delayed(get_loss)(j) for j in range(conf["epochs"]))
-        # np.save(arr=loss_history, file=f"{args.example}/{args.run_name}/loss_history_real_noise")
+        loss_history = Parallel(n_jobs=min(conf["epochs"],25))(delayed(get_loss)(j) for j in range(conf["epochs"]))
+        np.save(arr=loss_history, file=f"{args.example}/{args.run_name}/loss_history_real_noise")
 
-        # index_min = np.argmin(loss_history)
-        # print('Minimum loss', index_min + 1)
+        index_min = np.argmin(loss_history)
+        print('Minimum loss', index_min + 1)
 
-        # best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_{setting}/params_epoch_{index_min+1}.npy")
-        
-        best_params = np.load(f"{args.example}/{args.run_name}/cache/best_params_{conf['optimizer']}_{setting}.npy")
+        best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_{setting}/params_epoch_{index_min+1}.npy")
 
-        
+        #Noise fixed
+        # loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
+        # best_params = np.load(f"{args.example}/{args.run_name}/cache/best_params_{conf['optimizer']}_{setting}.npy")       
 
 
         VQR.set_parameters(best_params)

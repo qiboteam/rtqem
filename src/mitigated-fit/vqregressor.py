@@ -560,7 +560,7 @@ class vqregressor:
                 self.params = new_params
                 eps = abs((check_noise[epoch] - check_noise[epoch-1])/check_noise[epoch])
                 log.info(str(eps))
-                eps_var = 100
+                eps_var = 0.9  ###############################################
                 if eps > eps_var: #eps_val = 0.1
                     counter += 1
                     log.info('Updating CDR params')

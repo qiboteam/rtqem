@@ -156,7 +156,7 @@ def main(args):
         mit_kwargs=mit_kwargs[mitigation["method"]],
         scaler=scaler,
     )
-    VQR.mit_params = VQR.get_fit()[0]
+    #VQR.mit_params = VQR.get_fit()[0]
 
     fit_fig , fit_axis = plt.subplots(1, 1, figsize=(5*2/3, 5*(6/8)*2/3))
 
@@ -165,11 +165,11 @@ def main(args):
     loss_list=[]
     for run_name in run_names:
 
-        means = np.load(f"{args.example}/benchmark_4_new_update{run_name}/means_{platform}_realtime_mitigation_step_yes_final_yes.npy")
+        loss = np.load(f"{args.example}/benchmark_4_new_update{run_name}/loss_history_real_noise.npy")#means_{platform}_realtime_mitigation_step_yes_final_yes.npy")
 
-        loss_list.append(loss(labels,means))
+        loss_list.append(np.min(loss[0:40]))#loss(labels,means))
     
-    fit_axis.plot(list(range(len(run_names))),loss_list)
+    fit_axis.scatter(list(range(len(run_names))),loss_list)
     fit_fig.savefig(f"{args.example}/noise_ev.pdf", bbox_inches='tight')
 
 
