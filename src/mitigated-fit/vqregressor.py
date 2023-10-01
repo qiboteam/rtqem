@@ -646,8 +646,8 @@ class vqregressor:
         if self.bp_bound:
             np.save(arr=np.asarray(grad_bound_history), file=f"{cache_dir}/grad_bound_history_{train_type}")
             np.save(arr=np.asarray(loss_bound_history), file=f"{cache_dir}/loss_bound_history_{train_type}")
-        if self.mitigation['step'] is True:
-            np.save(arr=np.asanyarray(cdr_data, dtype=object), file=f"{cache_dir}/cdr_history_{train_type}")
+        # if self.mitigation['step'] is True:
+        #     np.save(arr=np.asanyarray(cdr_data, dtype=object), file=f"{cache_dir}/cdr_history_{train_type}")
 
         index_min = np.argmin(loss_history)
 
