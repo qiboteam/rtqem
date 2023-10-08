@@ -108,17 +108,17 @@ def main(args):
 
     fit_fig , fit_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
     fit_axis.plot(data1, labels, c="black", lw=1.5, alpha=0.8, label="Target function")
-    fit_axis.set_title(fr"Simulated fit", fontsize=12)
+    #fit_axis.set_title(r'$N_{\text{dim}}=4$', fontsize=12)
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
 
     loss_fig , loss_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
-    loss_axis.set_title(fr'Loss history', fontsize=12)
+    #loss_axis.set_title(r'$N_{\text{dim}}=4$', fontsize=12)
     loss_axis.set_xlabel('Epoch')
     loss_axis.set_ylabel("Loss")
 
     grad_fig , grad_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
-    grad_axis.set_title(fr'Grad history', fontsize=12)
+    #grad_axis.set_title(r'$N_{\text{dim}}=8$', fontsize=12)
     grad_axis.set_xlabel('Epoch')
     grad_axis.set_ylabel('Grad')
 
