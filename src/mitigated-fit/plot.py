@@ -17,7 +17,7 @@ parser.add_argument("example")
 
 parser.add_argument(
     "--platform",
-    default="tii1q_b1",
+    default="sim",
     help="Platform on which we perform predictions.",
     type=str,
 )
