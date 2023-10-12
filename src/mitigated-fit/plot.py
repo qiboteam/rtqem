@@ -94,7 +94,7 @@ def main(args):
     width = args.linewidth
 
 
-    data, labels, _ = prepare_data(
+    data, true_labels, _ = prepare_data(
         conf["function"], 
         show_sample=False,
         normalize=conf["normalize_data"], 
@@ -107,7 +107,7 @@ def main(args):
         data1 = data
 
     fit_fig , fit_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
-    fit_axis.plot(data1, labels, c="black", lw=1.5, alpha=0.8, label="Target function")
+    fit_axis.plot(data1, true_labels, c="black", lw=1.5, alpha=0.8, label="Target function")
     fit_axis.set_title(fr"Simulated fit", fontsize=12)
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
@@ -155,6 +155,8 @@ def main(args):
             setting = "unmitigated_step_no_final_yes"
         means = np.load(f"{args.example}/{args.run_name}/means_{platform}_{setting}.npy")
         stds = np.load(f"{args.example}/{args.run_name}/stds_{platform}_{setting}.npy")
+
+        print(f"MSE with settings '{setting}' is: {np.sum((true_labels - means)**2)/len(labels)}")
     
         plot(
             fit_axis,
