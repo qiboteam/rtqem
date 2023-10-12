@@ -17,7 +17,7 @@ parser.add_argument("example")
 
 parser.add_argument(
     "--platform",
-    default="tii1q_b1",
+    default="sim",
     help="Platform on which we perform predictions.",
     type=str,
 )
@@ -113,12 +113,12 @@ def main(args):
     fit_axis.set_ylabel("y")
 
     loss_fig , loss_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
-    loss_axis.set_title(fr'Loss history', fontsize=12)
+    #loss_axis.set_title(r'$N_{\text{dim}}=4$', fontsize=12)
     loss_axis.set_xlabel('Epoch')
     loss_axis.set_ylabel("Loss")
 
     grad_fig , grad_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
-    grad_axis.set_title(fr'Grad history', fontsize=12)
+    #grad_axis.set_title(r'$N_{\text{dim}}=8$', fontsize=12)
     grad_axis.set_xlabel('Epoch')
     grad_axis.set_ylabel('Grad')
 

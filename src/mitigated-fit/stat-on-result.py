@@ -128,12 +128,12 @@ def main(args):
     else:
         #backend = construct_backend("qibojit", platform="numba")
         backend = construct_backend("numpy")
-
+        
     # define dataset cardinality and number of executions
     global ndata, nruns
 
     # loading data 
-    data, labels, scaler = prepare_data(
+    data, labels1, scaler = prepare_data(
         conf["function"], 
         show_sample=False,
         normalize=conf["normalize_data"], 
@@ -171,7 +171,7 @@ def main(args):
 
     mit_kwargs = {
         "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-        "CDR": {"n_training_samples": 10, "readout": readout, "N_update": 20, "N_mean": 10, "nshots":10000},
+        "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 20, "N_mean": 5, "nshots":10000},
         "vnCDR": {
             "n_training_samples": 10,
             "noise_levels": np.arange(3),
@@ -189,7 +189,7 @@ def main(args):
         data1 = data
 
     fit_fig , fit_axis = plt.subplots(1, 1, figsize=(5*2/3, 5*(6/8)*2/3))
-    fit_axis.plot(data1, labels, c="black", lw=2, alpha=0.8, label="Target function")
+    fit_axis.plot(data1, labels1, c="black", lw=2, alpha=0.8, label="Target function")
     fit_axis.set_title("Statistics on results")
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
@@ -250,16 +250,18 @@ def main(args):
 
         print(f"> Drawing '{setting}' plot in {color}.")
         print(f"> Loading best parameters from:\n  -> '{args.example}/cache/best_params_{conf['optimizer']}_{setting}.npy'.")
-        best_params = np.load(f"{args.example}/{args.run_name}/cache/best_params_{conf['optimizer']}_{setting}.npy")
+
+
         if setting == 'noiseless':
             noise_setting = None
         else:
             noise_setting = noise
         # initialize vqr with data and best parameters
+
         VQR = vqregressor(
             layers=conf["nlayers"],
             data=data,
-            labels=labels,
+            labels=labels1,
             example=args.example,
             nqubits=conf["nqubits"],
             backend=backend,
@@ -271,6 +273,27 @@ def main(args):
             mit_kwargs=mit_kwargs[mitigation["method"]],
             scaler=scaler,
         )
+        #Noise evolution
+        # VQR.mit_params = VQR.get_fit()[0]
+
+        # def get_loss(j):
+        #     best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_realtime_mitigation_step_yes_final_yes/params_epoch_{j+1}.npy")
+        #     VQR.set_parameters(best_params)
+        #     return VQR.loss()
+
+
+        # loss_history = Parallel(n_jobs=min(conf["epochs"],25))(delayed(get_loss)(j) for j in range(conf["epochs"]))
+        # np.save(arr=loss_history, file=f"{args.example}/{args.run_name}/loss_history_real_noise")
+
+        # index_min = np.argmin(loss_history)
+        # print('Minimum loss', index_min + 1)
+
+        # best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_{setting}/params_epoch_{index_min+1}.npy")
+
+        #Noise fixed
+        loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
+        best_params = np.load(f"{args.example}/{args.run_name}/cache/best_params_{conf['optimizer']}_{setting}.npy")       
+
 
         VQR.set_parameters(best_params)
 
@@ -307,9 +330,9 @@ def main(args):
         #         predictions.append(VQR.predict_sample())
 
         # predictions = np.asarray(predictions)
-
+        #VQR.mit_params = VQR.get_fit()[0]
         def get_pred(j):
-            set_backend('numpy')
+            #set_backend('numpy')
             VQR.mit_params = None
             # if label == "Mitigation after training" or label=='Real time mitigation': 
             #     pred = np.asarray(VQR.predict_sample())*mit_params[0] + mit_params[1]
@@ -327,8 +350,8 @@ def main(args):
         
         # TO DO: ADD FUNCTION WHICH CLASSIFIES THE TRAINING
 
-        loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
-        print('Minimum loss', np.argmin(loss_history) + 1)
+        #loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
+        #print('Minimum loss', np.argmin(loss_history) + 1)
         grad_history = np.load(f"{args.example}/{args.run_name}/cache/grad_history_{setting}.npy")
 
         if label == 'Mitigation after training':

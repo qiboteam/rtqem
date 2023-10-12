@@ -142,7 +142,7 @@ tmp/
 outcmaes/
 
 # training params history 
-*params_epoch_*
+#*params_epoch_*
 
 # configuration files backups
 *.conf~

@@ -3,11 +3,11 @@ from itertools import product
 
 import numpy as np
 
-from qibo.noise import NoiseModel, PauliError, ReadoutError
+from qibo.noise import NoiseModel, PauliError, ReadoutError, DepolarizingError
 from qibo import gates
 
 def get_terms(nqubits):
-    num_terms = 3
+    num_terms = 3#4**nqubits-1
     terms = [-2]*num_terms
     terms_list = []
     for k in range(num_terms):
@@ -59,9 +59,11 @@ def generate_noise_model(qm, nqubits, noise_magnitude):
     probabilities = np.repeat(noise_magnitude, repeats=len(paulis)) 
     single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
     pauli_noise = PauliError(list(zip(paulis, probabilities)))
+    #depol_noise = DepolarizingError(noise_magnitude*4**nqubits)
     readout_noise = ReadoutError(single_readout_matrix)
 
     noise = NoiseModel()
+    #noise.add(depol_noise, gates.I)
     noise.add(pauli_noise, gates.I)
     noise.add(readout_noise, gates.M)
 
