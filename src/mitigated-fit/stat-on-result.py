@@ -170,16 +170,10 @@ def main(args):
             raise AssertionError("Invalid readout mitigation method specified.")
 
     mit_kwargs = {
-        "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-        "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 20, "N_mean": 5, "nshots":10000},
-        "vnCDR": {
-            "n_training_samples": 10,
-            "noise_levels": np.arange(3),
-            "insertion_gate": "RX",
-            "readout": readout,
-        },
+        "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 10000},
+        "mit_obs": {"n_training_samples": 10, "readout": readout, "nshots": 10000},
         None: {},
-    }   
+    }
 
     # plot results
 
@@ -232,17 +226,17 @@ def main(args):
             labels.append('No mitigation')
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
-            mitigation_settings.append({"step":False,"final":True,"method":"CDR","readout":None})
+            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":None})
             colors.append('orange')
             labels.append('Mitigation after training')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":True,"final":True,"method":"CDR","readout":None})
+            mitigation_settings.append({"step":True,"final":True,"method":"mit_obs","readout":None})
             colors.append('red')
             labels.append('Real time mitigation')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":False,"final":True,"method":"CDR","readout":"calibration_matrix"})
+            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
             colors.append('orange')
             labels.append('Full mitigation')
 

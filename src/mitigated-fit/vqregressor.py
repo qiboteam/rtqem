@@ -101,24 +101,25 @@ class vqregressor:
     def ansatz(self, nqubits, layers):
         """Here we implement the variational model ansatz."""
         c = Circuit(nqubits, density_matrix=True)
-
         for l in range(layers):
-            #c.add(gates.I(*range(nqubits)))
+            c.add(gates.I(*range(nqubits)))
             for q in range(nqubits):
-                c.add(gates.I(q))
+                #c.add(gates.I(q))
                 # decomposition of RY gate
+                gpi2 = gates.GPI2(q=q, phi=0, trainable=False)
+                gpi2.clifford = True
                 c.add(
                     [
-                        gates.GPI2(q=q, phi=0, trainable=False),
-                        gates.RZ(q=q, theta=0),
+                        gpi2,
+                        gates.RZ(q=q, theta=0.5),
                         gates.RZ(q=q, theta=np.pi, trainable=False),
-                        gates.GPI2(q=q, phi=0, trainable=False),
+                        gpi2,
                         gates.RZ(q=q, theta=np.pi, trainable=False),
                     ]
                 )
                 # add RZ if this is not the last layer
                 #if l != self.layers - 1:
-                c.add(gates.RZ(q=q, theta=0))
+                c.add(gates.RZ(q=q, theta=0.5))
             
             # add entangling layer between layers
             #if (l != self.layers - 1) and (self.nqubits > 1):
@@ -126,9 +127,9 @@ class vqregressor:
                 for q in range(0, nqubits-1, 1):
                     c.add(gates.CNOT(q0=q, q1=q+1))
                 c.add(gates.CNOT(q0=nqubits-1, q1=0))
-        #c.add(gates.I(*range(nqubits)))
-        for q in range(nqubits):
-            c.add(gates.I(q))
+        c.add(gates.I(*range(nqubits)))
+        # for q in range(nqubits):
+        #     c.add(gates.I(q))
 
         return c
     
@@ -246,13 +247,10 @@ class vqregressor:
         return obs
 
     def fits_iter(self, mit_kwargs, rand_params):
-        mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples','readout']}
+        mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples']}
         self.circuit.set_parameters(rand_params)
-        #self.inject_data(self.data[random.randint(0,self.ndata-1)])
         circuit, observable = self.epx_value()
-        #np.random.seed() #comment for training. Uncomment stat on results
-        #self.backend.set_seed(None)
-        cdr = self.mitigation['method'](
+        data = self.mitigation['method'](
             circuit=circuit,
             observable=observable,
             noise_model=self.noise_model,
@@ -261,34 +259,23 @@ class vqregressor:
             full_output=True,
             **mit_kwargs
         )
-        return cdr
+        return data
    
     def get_fit(self, x=None):
-        #np.random.seed(1234)
-        rand_params = np.random.uniform(-2*np.pi,2*np.pi,int(self.nparams/2)*self.mit_kwargs['N_mean'])
-        mean_params = []
+        rand_params = np.random.uniform(-2*np.pi,2*np.pi,int(self.nparams/2))
         mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples','readout']}
-        cdr_data = []
         if x is None:
-            if self.backend.name == 'numpy':
-                cdr_data = np.array(Parallel(n_jobs=min(self.nthreads,self.mit_kwargs['N_mean']))(delayed(self.fits_iter)(mit_kwargs, rand_params[j*int(self.nparams/2):(j+1)*int(self.nparams/2)]) for j in range(self.mit_kwargs['N_mean'])), dtype=object)
-            else:
-                cdr_data = []
-                for j in range(len(self.mit_kwargs['N_mean'])):
-                    cdr_data.append(self.fits_iter(mit_kwargs, rand_params[j*int(self.nparams/2):(j+1)*int(self.nparams/2)]))
-                cdr_data = np.array(cdr_data)
-
+            data = self.fits_iter(mit_kwargs, rand_params)#[j*int(self.nparams/2):(j+1)*int(self.nparams/2)])
             from uniplot import plot
-            plot(cdr_data[0][3]["noisy"],cdr_data[0][3]["noise-free"])
-            params= cdr_data[:,2]
-            mean_params = np.mean(params,axis=0)
-            std = np.std(params,axis=0)
-            log.info('CDR_params '+str(mean_params)+str('err ')+str(std))
+            plot(data[5]["noisy"]['-1'] + data[5]["noisy"]['1'],data[5]["noise-free"]['-1'] + data[5]["noise-free"]['1'])
+            mean_param = data[2]
+            std = data[3]
+            log.info('CDR_params '+str(mean_param)+str('err ')+str(std))
 
         else:
             self.inject_data(x)
             circuit, observable = self.epx_value()
-            cdr = self.mitigation['method'](
+            data = self.mitigation['method'](
                 circuit=circuit,
                 observable=observable,
                 noise_model=self.noise_model,
@@ -297,18 +284,18 @@ class vqregressor:
                 full_output=True,
                 **mit_kwargs
             )
-            mean_params = cdr[2]
-            print(cdr[2])
-            cdr_data.append(cdr)
-            cdr_data = np.array(cdr_data,dtype=object)
-        return mean_params, cdr_data
+            mean_params = data[2]
+            std = data[3]
+            # cdr_data.append(data)
+            # cdr_data = np.array(data,dtype=object)
+        return [mean_param, std], data
 
     def one_mitigated_prediction(self, x):
         """This function calculates one mitigated prediction with fixed x."""
         obs_noisy = self.one_prediction_readout(x)
         if self.mit_params is None:
             self.mit_params = self.get_fit()[0]
-        obs = self.mit_params[0]*obs_noisy + self.mit_params[1]
+        obs = (1 - self.mit_params[0]) * obs_noisy / ((1 - self.mit_params[0]) ** 2 + self.mit_params[1]**2)
         return obs
 
     def step_prediction(self, x):
@@ -561,23 +548,23 @@ class vqregressor:
                 noise_magnitude = (1+rands[epoch])*noise_magnitude_init
                 self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
                 
-            self.params = init_params
-            check_noise.append(self.one_prediction([0]*self.nqubits))
-            if epoch != 0:
-                self.params = new_params
-                eps = abs((check_noise[epoch] - check_noise[epoch-1])/check_noise[epoch])
-                log.info(str(eps))
-                eps_var = 100  ###############################################
-                if eps > eps_var: #eps_val = 0.1
-                    counter += 1
-                    log.info('Updating CDR params')
-                    self.mit_params, cdr_data = self.get_fit()
-                    std = np.std(cdr_data[:,2],axis=0)
-                    check = 4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
-                    log.info(str(eps)+' '+str(check))
-                    if check > eps_var:
-                        log.info('eps_var>'+str(check))
-                    cdr_history.append(cdr_data)
+            # self.params = init_params
+            # check_noise.append(self.one_prediction([0]*self.nqubits))
+            # if epoch != 0:
+            #     self.params = new_params
+            #     eps = abs((check_noise[epoch] - check_noise[epoch-1])/check_noise[epoch])
+            #     log.info(str(eps))
+            #     eps_var = 100  ###############################################
+            #     if eps > eps_var: #eps_val = 0.1
+            #         counter += 1
+            #         log.info('Updating CDR params')
+            #         self.mit_params, data = self.get_fit()
+            #         std = self.mit_params[1]
+            #         check = 4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
+            #         log.info(str(eps)+' '+str(check))
+            #         if check > eps_var:
+            #             log.info('eps_var>'+str(check))
+            #         cdr_history.append(data)
 
             iteration = 0
 

@@ -88,14 +88,8 @@ if conf["mitigation"]["readout"] is not None:
         raise AssertionError("Invalid readout mitigation method specified.")
 
 mit_kwargs = {
-    "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-    "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "N_mean": 5, "nshots": 10000},
-    "vnCDR": {
-        "n_training_samples": 10,
-        "noise_levels": np.arange(3),
-        "insertion_gate": "RX",
-        "readout": readout,
-    },
+    "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 10000},
+    "mit_obs": {"n_training_samples": 10, "readout": readout, "nshots": 10000},
     None: {},
 }
 
