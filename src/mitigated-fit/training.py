@@ -12,7 +12,6 @@ from prepare_data import prepare_data
 from qibo import gates, set_backend
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
-from qibo.noise import NoiseModel, PauliError, ReadoutError
 from savedata_utils import get_training_type
 from uniplot import plot
 from vqregressor import vqregressor
@@ -90,6 +89,7 @@ mit_kwargs = {
 
 VQR = vqregressor(
     nqubits=nqubits,
+    target_qubit=conf["target_qubit"],
     layers=layers,
     data=data,
     labels=labels,

@@ -1,4 +1,4 @@
 #!/bin/bash
 #SBATCH --job-name=sgd
 
-python training.py gluon
+QIBO_LOG_LEVEL=4 python training.py gluon

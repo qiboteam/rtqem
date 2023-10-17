@@ -29,7 +29,8 @@ class vqregressor:
         labels,
         layers,
         example,
-        nqubits=1,  
+        nqubits=1, 
+        target_qubit=None, 
         backend=None,
         nthreads=1,
         noise_model=None,
@@ -44,12 +45,13 @@ class vqregressor:
         """Class constructor."""
         # some general features of the QML model
         self.nqubits = nqubits
+        self.target_qubit = target_qubit
         self.layers = layers
         self.data = data
         # get data dimensionality
         self.ndim = len(np.atleast_1d(data[0]))
 
-        if nqubits != self.ndim:
+        if nqubits != self.ndim and self.target_qubit is None:
             raise ValueError(
                 f"Please select a number of qubits equal to the data dimensionality, which is {self.ndim}"
             )
@@ -77,12 +79,18 @@ class vqregressor:
         self.circuit = self.ansatz(nqubits, layers)
         self.print_model()
 
+        #exit()
+
         # get the number of parameters
-        self.nparams = (nqubits * layers * 4) - 2 * nqubits
+        if self.target_qubit is None:
+            self.nparams = (nqubits * layers * 4) - 2 * nqubits
+        else:
+            self.nparams = (layers * 4) - 2 
+        
         # set the initial value of the variational parameters
         np.random.seed(1234)
         self.params = np.random.randn(self.nparams)
-        print("Initial guess:", self.params)
+        print(f"Initial {self.nparams} guess: {self.params}")
 
         # scaling factor for custom parameter shift rule
         self.scale_factors = np.ones(self.nparams)
@@ -102,29 +110,35 @@ class vqregressor:
 
         for l in range(layers):
             for q in range(nqubits):
-                c.add(gates.I(q))
-                # decomposition of RY gate
-                c.add(
-                    [
-                        gates.GPI2(q=q, theta=0, trainable=False),
-                        gates.RZ(q=q, theta=0),
-                        gates.RZ(q=q, theta=np.pi, trainable=False),
-                        gates.GPI2(q=q, theta=0, trainable=False),
-                        gates.RZ(q=q, theta=np.pi, trainable=False),
-                    ]
-                )
-                # add RZ if this is not the last layer
-                if l != self.layers - 1:
-                    c.add(gates.RZ(q=q, theta=0))
+                if (self.target_qubit is not None and q != self.target_qubit):
+                    continue
+                else:  
+                    c.add(gates.I(q))
+                    # decomposition of RY gate
+                    c.add(
+                        [
+                            gates.GPI2(q=q, phi=0, trainable=False),
+                            gates.RZ(q=q, theta=0),
+                            gates.RZ(q=q, theta=np.pi, trainable=False),
+                            gates.GPI2(q=q, phi=0, trainable=False),
+                            gates.RZ(q=q, theta=np.pi, trainable=False),
+                        ]
+                    )
+                    # add RZ if this is not the last layer
+                    if l != self.layers - 1:
+                        c.add(gates.RZ(q=q, theta=0))
             
             # add entangling layer between layers
-            if (l != self.layers - 1) and (self.nqubits > 1):
+            if (l != self.layers - 1) and (self.nqubits > 1) and (self.target_qubit is None):
                 for q in range(0, nqubits-1, 1):
                     c.add(gates.CNOT(q0=q, q1=q+1))
                 c.add(gates.CNOT(q0=nqubits-1, q1=0))
 
         for q in range(nqubits):
-            c.add(gates.I(q))
+            if (self.target_qubit is not None and q != self.target_qubit):
+                continue
+            else:  
+                c.add(gates.I(q))
 
         return c
     
@@ -141,21 +155,24 @@ class vqregressor:
 
         for l in range(self.layers):
             for q in range(self.nqubits):
-                # embed x
-                params.append(
-                    self.params[index] * self.scaler(x[q]) + self.params[index + 1]
-                )
-                # update scale factors
+                if (self.target_qubit is not None and q != self.target_qubit):
+                    continue
+                else:
+                    # embed x
+                    params.append(
+                        self.params[index] * self.scaler(x[q]) + self.params[index + 1]
+                    )
+                    # update scale factors
 
-                # equal to x only when x is involved
-                self.scale_factors[index] = self.scaler(x[q])
+                    # equal to x only when x is involved
+                    self.scale_factors[index] = self.scaler(x[q])
 
-                # add RZ if this is not the last layer
-                if l != self.layers - 1:
-                    params.append(self.params[index + 2] * x[q] + self.params[index + 3])
-                    self.scale_factors[index + 2] = x[q]
-                    # we have four parameters per layer
-                    index += 4
+                    # add RZ if this is not the last layer
+                    if l != self.layers - 1:
+                        params.append(self.params[index + 2] * x[q] + self.params[index + 3])
+                        self.scale_factors[index + 2] = x[q]
+                        # we have four parameters per layer
+                        index += 4
 
         # update circuit's parameters
         self.circuit.set_parameters(params)
@@ -192,9 +209,15 @@ class vqregressor:
             observable[0, 0] = 1
             observable = Hamiltonian(self.nqubits, observable, backend=self.backend)
         else:
-            circuit.add(gates.M(*range(self.nqubits)))
+            if self.target_qubit is not None:
+                circuit.add(gates.M(self.target_qubit))
+                target_qubits = 1
+            else:
+                circuit.add(gates.M(*range(self.nqubits)))
+                target_qubits = self.nqubits
+
             observable = SymbolicHamiltonian(
-                np.prod([Z(i) for i in range(self.nqubits)]), backend=self.backend
+                np.prod([Z(i) for i in range(target_qubits)]), backend=self.backend
             )
 
         return circuit, observable
