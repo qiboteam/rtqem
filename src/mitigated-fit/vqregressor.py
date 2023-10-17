@@ -209,7 +209,7 @@ class vqregressor:
         """This function calculates one prediction with fixed x."""
         self.inject_data(x)
         circuit, observable = self.epx_value()
-        circuit.fuse(max_qubits=1)
+        circuit = circuit.fuse(max_qubits=1)
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
@@ -230,7 +230,7 @@ class vqregressor:
         """This function calculates one prediction with fixed x and readout mitigation."""
         self.inject_data(x)
         circuit, observable = self.epx_value()
-        circuit.fuse(max_qubits=1)
+        circuit = circuit.fuse(max_qubits=1)
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:

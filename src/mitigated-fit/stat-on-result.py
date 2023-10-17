@@ -123,11 +123,6 @@ def main(args):
         conf = json.load(f)
 
     platform = conf["platform"]
-    if conf["qibolab"]:
-        backend = construct_backend("qibolab", conf["platform"])
-    else:
-        #backend = construct_backend("qibojit", platform="numba")
-        backend = construct_backend("numpy")
         
     # define dataset cardinality and number of executions
     global ndata, nruns
@@ -151,7 +146,7 @@ def main(args):
 
     if conf["qibolab"]:        
         backend = construct_backend("qibolab", conf["platform"])
-        backend.transpiler = None
+        #backend.transpiler = None
     else:
         set_backend('numpy')
         backend = construct_backend("numpy")

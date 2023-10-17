@@ -67,7 +67,7 @@ else:
 
 if conf["qibolab"]:    
     backend = construct_backend("qibolab", conf["platform"])
-    backend.transpiler = None
+    #backend.transpiler = None
 else:
     set_backend('numpy')
     #set_threads(5)
