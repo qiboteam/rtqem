@@ -102,9 +102,9 @@ class vqregressor:
         """Here we implement the variational model ansatz."""
         c = Circuit(nqubits, density_matrix=True)
         for l in range(layers):
-            c.add(gates.I(*range(nqubits)))
+            #c.add(gates.I(*range(nqubits)))
             for q in range(nqubits):
-                #c.add(gates.I(q))
+                c.add(gates.I(q))
                 # decomposition of RY gate
                 gpi2 = gates.GPI2(q=q, phi=0, trainable=False)
                 gpi2.clifford = True
@@ -127,9 +127,9 @@ class vqregressor:
                 for q in range(0, nqubits-1, 1):
                     c.add(gates.CNOT(q0=q, q1=q+1))
                 c.add(gates.CNOT(q0=nqubits-1, q1=0))
-        c.add(gates.I(*range(nqubits)))
-        # for q in range(nqubits):
-        #     c.add(gates.I(q))
+        #c.add(gates.I(*range(nqubits)))
+        for q in range(nqubits):
+            c.add(gates.I(q))
 
         return c
     
@@ -209,6 +209,7 @@ class vqregressor:
         """This function calculates one prediction with fixed x."""
         self.inject_data(x)
         circuit, observable = self.epx_value()
+        circuit.fuse(max_qubits=1)
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
@@ -229,11 +230,10 @@ class vqregressor:
         """This function calculates one prediction with fixed x and readout mitigation."""
         self.inject_data(x)
         circuit, observable = self.epx_value()
+        circuit.fuse(max_qubits=1)
         if self.noise_model != None:
-            #print(self.noise_model.errors[gates.I][0][1].options[0][1])
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
-            #self.backend.set_seed(None)
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
