@@ -56,7 +56,8 @@ def generate_noise_model(qm, nqubits, noise_magnitude):
     """
 
     paulis = list(product(["I", "X", "Y", "Z"], repeat=1))[1:]
-    probabilities = np.repeat(noise_magnitude, repeats=len(paulis)) 
+    np.random.seed(123)
+    probabilities = np.random.rand(len(paulis))*noise_magnitude#np.repeat(noise_magnitude, repeats=len(paulis)) 
     single_readout_matrix = np.array([[1-qm,qm],[qm,1-qm]])
     pauli_noise = PauliError(list(zip(paulis, probabilities)))
     #depol_noise = DepolarizingError(noise_magnitude*4**nqubits)
