@@ -9,11 +9,11 @@ from itertools import product
 import numpy as np
 from bp_utils import bound_pred, generate_noise_model
 from prepare_data import prepare_data
-from qibo import gates, set_backend
+from qibo import gates, set_backend, set_threads
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
 from savedata_utils import get_training_type
-from uniplot import plot
+#from uniplot import plot
 from vqregressor import vqregressor
 
 parser = argparse.ArgumentParser(description="Training the vqregressor")
@@ -51,16 +51,27 @@ noise_magnitude = conf["noise_magnitude"]
 if conf["noise"]:
     print("Generating noise model given noise paramaters.")
     noise = generate_noise_model(qm=qm, nqubits=nqubits, noise_magnitude=noise_magnitude)
+    if conf["bp_bound"]:
+        params = noise.errors[gates.I][0][1].options
+        probs = [params[k][1] for k in range(3)]
+        #lamb = noise.errors[gates.I][0][1].options
+        #probs = (4**nqubits-1)*[lamb/4**nqubits]
+        bit_flip = noise.errors[gates.M][0][1].options[0,-1]
+        bounds = bound_pred(layers, nqubits, probs, bit_flip)
+        print('bound', bounds)
+        np.save(f"{cache_dir}/pred_bound", np.array(bounds))
 else:
     print("Noisless model is executed.")
     noise = None
 
 if conf["qibolab"]:    
     backend = construct_backend("qibolab", conf["platform"])
-    backend.transpiler = None
+    #backend.transpiler = None
 else:
     set_backend('numpy')
-    backend = construct_backend("numpy")
+    #set_threads(5)
+    backend = construct_backend('numpy')
+    #backend.set_threads(5)
     
 readout = {}
 if conf["mitigation"]["readout"] is not None:
@@ -76,14 +87,8 @@ if conf["mitigation"]["readout"] is not None:
         raise AssertionError("Invalid readout mitigation method specified.")
 
 mit_kwargs = {
-    "ZNE": {"noise_levels": np.arange(5), "insertion_gate": "RX", "readout": readout},
-    "CDR": {"n_training_samples": 100, "readout": readout, "N_update": 20, "N_mean": 10, "nshots": 10000},
-    "vnCDR": {
-        "n_training_samples": 10,
-        "noise_levels": np.arange(3),
-        "insertion_gate": "RX",
-        "readout": readout,
-    },
+    "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 10000},
+    "mit_obs": {"n_training_samples": 10, "readout": readout, "nshots": 10000},
     None: {},
 }
 
@@ -98,7 +103,7 @@ VQR = vqregressor(
     obs_hardware=conf["obs_hardware"],
     backend=backend,
     nthreads=conf["nthreads"],
-    noise_model=noise,
+    noise_model=[noise, conf["noise_update"]],
     bp_bound=conf["bp_bound"],
     mitigation=conf["mitigation"],
     mit_kwargs=mit_kwargs[conf["mitigation"]["method"]],
@@ -118,7 +123,7 @@ if conf["optimizer"] == "Adam":
         restart_from_epoch=conf["restart_from_epoch"],
         batchsize=conf["batchsize"],
         method="Adam",
-        J_treshold=2/conf["nshots"],
+        J_treshold=2**conf["nqubits"]/conf["nshots"],
         xscale=conf["xscale"]
     )
 elif conf["optimizer"] == "CMA":
@@ -127,7 +132,7 @@ end = time.time()
 
 predictions = VQR.predict_sample()
 
-plot([labels, predictions], legend_labels=["target", "predictions"])
+#plot([labels, predictions], legend_labels=["target", "predictions"])
 
 print(f"Execution time required: ", (end - start))
 
@@ -136,10 +141,3 @@ print(f"Execution time required: ", (end - start))
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.params)
-
-if conf["noise"] and conf["bp_bound"] and os.path.exists(f"{cache_dir}/pred_bound") == False:
-    params = noise.errors[gates.I][0][1].options
-    probs = [params[k][1] for k in range(3)]
-    bit_flip = noise.errors[gates.M][0][1].options[0,-1]**(1/nqubits)
-    bounds = bound_pred(layers, nqubits, probs, bit_flip)
-    np.save(f"{cache_dir}/pred_bound", np.array(bounds))
