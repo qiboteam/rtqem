@@ -160,17 +160,17 @@ class vqregressor:
                 else:
                     # embed x
                     params.append(
-                        self.params[index] * self.scaler(x[q]) + self.params[index + 1]
+                        self.params[index] * self.scaler(x[0]) + self.params[index + 1]
                     )
                     # update scale factors
 
                     # equal to x only when x is involved
-                    self.scale_factors[index] = self.scaler(x[q])
+                    self.scale_factors[index] = self.scaler(x[0])
 
                     # add RZ if this is not the last layer
                     if l != self.layers - 1:
-                        params.append(self.params[index + 2] * x[q] + self.params[index + 3])
-                        self.scale_factors[index + 2] = x[q]
+                        params.append(self.params[index + 2] * x[0] + self.params[index + 3])
+                        self.scale_factors[index + 2] = x[0]
                         # we have four parameters per layer
                         index += 4
 
@@ -210,15 +210,14 @@ class vqregressor:
             observable = Hamiltonian(self.nqubits, observable, backend=self.backend)
         else:
             if self.target_qubit is not None:
+                print("Settings in case one qubit of the chip is selected")
                 circuit.add(gates.M(self.target_qubit))
-                target_qubits = 1
+                observable = SymbolicHamiltonian(Z(0))
             else:
                 circuit.add(gates.M(*range(self.nqubits)))
-                target_qubits = self.nqubits
-
-            observable = SymbolicHamiltonian(
-                np.prod([Z(i) for i in range(target_qubits)]), backend=self.backend
-            )
+                observable = SymbolicHamiltonian(
+                    np.prod([Z(i) for i in range(self.nqubits)]), backend=self.backend
+                )
 
         return circuit, observable
 
@@ -229,6 +228,8 @@ class vqregressor:
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
+            print("Here I am")
+            print(observable.matrix)
             obs = self.backend.execute_circuit(
                 circuit, nshots=self.nshots
             ).expectation_from_samples(observable)
