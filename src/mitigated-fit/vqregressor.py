@@ -60,6 +60,7 @@ class vqregressor:
         self.backend = backend
         self.noise_model = noise_model[0]
         self.noise_update = noise_model[1]
+        self.noise_threshold = noise_model[2]
         self.bp_bound = bp_bound
         self.nshots = nshots
         self.exp_from_samples = expectation_from_samples
@@ -532,39 +533,42 @@ class vqregressor:
             v = np.zeros(self.nparams)
 
         # cycle over the epochs
-        #np.random.seed(1234)
+        np.random.seed(1234)
         rands = np.random.uniform(0, 2, epochs)
         check_noise=[]
         init_params = self.params
         if self.noise_model != None:
             qm_init = self.noise_model.errors[gates.M][0][1].options[0,-1]
-            noise_magnitude_init = self.noise_model.errors[gates.I][0][1].options[0][1]
+            noise_magnitude_init = [self.noise_model.errors[gates.I][0][1].options[j][1] for j in range(3)]#self.noise_model.errors[gates.I][0][1].options[0][1]
             #noise_magnitude_init = self.noise_model.errors[gates.I][0][1].options/4**self.nqubits
         counter = 0
         for epoch in range(epochs):   
 
             if epoch%self.noise_update == 0 and epoch != 0:
                 qm = (1+rands[epoch])*qm_init
-                noise_magnitude = (1+rands[epoch])*noise_magnitude_init
+                noise_magnitude = (1+rands[epoch])*np.array(noise_magnitude_init)
                 self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
                 
-            # self.params = init_params
-            # check_noise.append(self.one_prediction([0]*self.nqubits))
-            # if epoch != 0:
-            #     self.params = new_params
-            #     eps = abs((check_noise[epoch] - check_noise[epoch-1])/check_noise[epoch])
-            #     log.info(str(eps))
-            #     eps_var = 100  ###############################################
-            #     if eps > eps_var: #eps_val = 0.1
-            #         counter += 1
-            #         log.info('Updating CDR params')
-            #         self.mit_params, data = self.get_fit()
-            #         std = self.mit_params[1]
-            #         check = 4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
-            #         log.info(str(eps)+' '+str(check))
-            #         if check > eps_var:
-            #             log.info('eps_var>'+str(check))
-            #         cdr_history.append(data)
+            if self.mitigation['step']:
+                self.params = init_params
+                np.random.seed(123)
+                xs = np.random.rand(self.nqubits)*2*np.pi
+                check_noise.append(self.one_prediction(xs))
+                if epoch != 0:
+                    self.params = new_params
+                    eps = abs((check_noise[epoch] - check_noise[epoch-1])/check_noise[epoch])
+                    log.info(str(eps))
+                    #eps_var = 0.1  ###############################################
+                    if eps > self.noise_threshold: #eps_val = 0.1
+                        counter += 1
+                        log.info('Updating CDR params')
+                        self.mit_params, data = self.get_fit()
+                        std = self.mit_params[1]
+                        check = 2*std#4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
+                        log.info(str(eps)+' '+str(check))
+                        if check > self.noise_threshold:
+                            log.info('eps_var>'+str(check))
+                        cdr_history.append(data)
 
             iteration = 0
 
