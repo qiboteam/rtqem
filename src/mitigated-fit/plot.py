@@ -108,7 +108,7 @@ def main(args):
 
     fit_fig , fit_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
     fit_axis.plot(data1, true_labels, c="black", lw=1.5, alpha=0.8, label="Target function")
-    fit_axis.set_title(fr"Simulated fit", fontsize=12)
+    #fit_axis.set_title(r'$N_{\text{dim}}=4$', fontsize=12)
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
 
