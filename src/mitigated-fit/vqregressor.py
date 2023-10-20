@@ -200,7 +200,7 @@ class vqregressor:
                     new_gate.result = gate.result
                     new_c.add(new_gate)
                 elif isinstance(gate, gates.I):
-                    circuit.add(gate.__class__(*tuple(qubits), **gate.init_kwargs))
+                    new_c.add(gate.__class__(*tuple(qubits), **gate.init_kwargs))
                 else:
                     matrix = gate.matrix()
                     new_c.add(gates.Unitary(matrix, *tuple(qubits), **gate.init_kwargs))
