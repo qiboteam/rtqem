@@ -95,6 +95,7 @@ mit_kwargs = {
 
 VQR = vqregressor(
     nqubits=nqubits,
+    qubit_map = conf["qubit_map"],
     layers=layers,
     data=data,
     labels=labels,

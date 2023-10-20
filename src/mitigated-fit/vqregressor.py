@@ -30,7 +30,8 @@ class vqregressor:
         labels,
         layers,
         example,
-        nqubits=1,  
+        nqubits=1,
+        qubit_map = None,  
         backend=None,
         nthreads=1,
         noise_model=None,
@@ -58,6 +59,11 @@ class vqregressor:
         self.labels = labels
         self.ndata = len(labels)
         self.backend = backend
+
+        if qubit_map == None:
+            qubit_map = list(range(self.nqubits))
+            
+        self.qubit_map = qubit_map
         self.noise_model = noise_model[0]
         self.noise_update = noise_model[1]
         self.noise_threshold = noise_model[2]
@@ -184,6 +190,24 @@ class vqregressor:
         """Functions which saves the current variational parameters"""
         return self.params
 
+    def transpile_circ(self, circuit):
+        if self.backend.name == 'qibolab':
+            new_c = Circuit(self.backend.platform.nqubits)
+            for gate in circuit.queue:
+                qubits = [self.qubit_map[j] for j in gate.qubits]
+                if isinstance(gate, gates.M):
+                    new_gate = gates.M(*tuple(qubits), **gate.init_kwargs)
+                    new_gate.result = gate.result
+                    new_c.add(new_gate)
+                elif isinstance(gate, gates.I):
+                    circuit.add(gate.__class__(*tuple(qubits), **gate.init_kwargs))
+                else:
+                    matrix = gate.matrix()
+                    new_c.add(gates.Unitary(matrix, *tuple(qubits), **gate.init_kwargs))
+            return new_c
+        else:
+            return circuit
+
     # ------------------------------- PREDICTIONS ----------------------------------
 
     def epx_value(self):
@@ -215,9 +239,9 @@ class vqregressor:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
             #self.backend.set_seed(None)
-            obs = self.backend.execute_circuit(
-                circuit, nshots=self.nshots
-            ).expectation_from_samples(observable)
+            circuit = self.transpile_circ(circuit)
+            result = self.backend.execute_circuit(circuit, nshots=self.nshots)
+            obs = observable.expectation_from_samples(result.frequencies())
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(
@@ -235,11 +259,12 @@ class vqregressor:
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
+            circuit = self.transpile_circ(circuit)
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
                 result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
-            obs = result.expectation_from_samples(observable)
+            obs = observable.expectation_from_samples(result.frequencies())
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
