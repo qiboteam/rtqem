@@ -111,7 +111,10 @@ class vqregressor:
         for l in range(layers):
             #c.add(gates.I(*range(nqubits)))
             for q in range(nqubits):
-                c.add(gates.I(q))
+                Id = gates.I(q)
+                if l == 0:
+                    Id.name = 'id_init'
+                c.add(Id)
                 # decomposition of RY gate
                 gpi2 = gates.GPI2(q=q, phi=0, trainable=False)
                 gpi2.clifford = True
@@ -136,7 +139,9 @@ class vqregressor:
                 c.add(gates.CNOT(q0=nqubits-1, q1=0))
         #c.add(gates.I(*range(nqubits)))
         for q in range(nqubits):
-            c.add(gates.I(q))
+            Id = gates.I(q)
+            Id.name = 'id_end'
+            c.add(Id)
 
         return c
     
