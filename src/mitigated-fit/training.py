@@ -67,7 +67,7 @@ else:
 
 if conf["qibolab"]:    
     backend = construct_backend("qibolab", conf["platform"])
-    #backend.transpiler = None
+    backend.transpiler = None
 else:
     set_backend('numpy')
     #set_threads(5)
@@ -89,7 +89,7 @@ if conf["mitigation"]["readout"] is not None:
 
 mit_kwargs = {
     "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 10000},
-    "mit_obs": {"n_training_samples": 10, "readout": readout, "nshots": 10000},
+    "mit_obs": {"n_training_samples": 10, "readout": readout, "nshots": 1000},
     None: {},
 }
 

@@ -191,6 +191,7 @@ class vqregressor:
         return self.params
 
     def transpile_circ(self, circuit):
+        from qibolab.transpilers.unitary_decompositions import u3_decomposition
         if self.backend.name == 'qibolab':
             new_c = Circuit(self.backend.platform.nqubits)
             for gate in circuit.queue:
@@ -203,7 +204,7 @@ class vqregressor:
                     new_c.add(gate.__class__(*tuple(qubits), **gate.init_kwargs))
                 else:
                     matrix = gate.matrix()
-                    new_c.add(gates.Unitary(matrix, *tuple(qubits), **gate.init_kwargs))
+                    new_c.add(gates.U3(*tuple(qubits), *u3_decomposition(matrix)))#gates.Unitary(matrix, *tuple(qubits), **gate.init_kwargs))
             return new_c
         else:
             return circuit
@@ -280,6 +281,7 @@ class vqregressor:
             circuit=circuit,
             observable=observable,
             noise_model=self.noise_model,
+            qubit_map=self.qubit_map,
             backend=self.backend,
             nshots=self.mit_kwargs['nshots'],
             full_output=True,
