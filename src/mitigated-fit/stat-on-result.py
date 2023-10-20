@@ -256,13 +256,15 @@ def main(args):
             backend=backend,
             nshots=conf["nshots"],
             expectation_from_samples=conf["expectation_from_samples"],
-            noise_model=[noise_setting,None],
+            noise_model=[noise_setting,None,None],
             bp_bound=conf["bp_bound"],
             mitigation=mitigation,
             mit_kwargs=mit_kwargs[mitigation["method"]],
             scaler=scaler,
         )
+        
         #Noise evolution
+        #VQR.noise_model = None
         # VQR.mit_params = VQR.get_fit()[0]
 
         # def get_loss(j):
@@ -278,6 +280,8 @@ def main(args):
         # print('Minimum loss', index_min + 1)
 
         # best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_{setting}/params_epoch_{index_min+1}.npy")
+        # VQR.noise_model = noise_setting
+
 
         #Noise fixed
         loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
