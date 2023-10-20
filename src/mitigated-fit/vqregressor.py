@@ -172,11 +172,11 @@ class vqregressor:
                     self.scale_factors[index] = self.scaler(x[0])
 
                     # add RZ if this is not the last layer
-                    if l != self.layers - 1:
-                        params.append(self.params[index + 2] * x[0] + self.params[index + 3])
-                        self.scale_factors[index + 2] = x[0]
-                        # we have four parameters per layer
-                        index += 4
+                    #if l != self.layers - 1:
+                    params.append(self.params[index + 2] * x[0] + self.params[index + 3])
+                    self.scale_factors[index + 2] = x[0]
+                    # we have four parameters per layer
+                    index += 4
 
         # update circuit's parameters
         self.circuit.set_parameters(params)
@@ -234,12 +234,11 @@ class vqregressor:
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
-<<<<<<< HEAD
-            print("Here I am")
-            print(observable.matrix)
-=======
             #self.backend.set_seed(None)
->>>>>>> origin/sim_new_cdr
+            print("111111", circuit.execute(nshots=1000).frequencies())
+            print("222222", circuit.draw())
+            print("333333", observable.matrix)
+
             obs = self.backend.execute_circuit(
                 circuit, nshots=self.nshots
             ).expectation_from_samples(observable)
@@ -569,10 +568,11 @@ class vqregressor:
         counter = 0
         for epoch in range(epochs):   
 
-            if epoch%self.noise_update == 0 and epoch != 0:
-                qm = (1+rands[epoch])*qm_init
-                noise_magnitude = (1+rands[epoch])*noise_magnitude_init
-                self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
+            if self.noise_update is not None:
+                if epoch%self.noise_update == 0 and epoch != 0:
+                    qm = (1+rands[epoch])*qm_init
+                    noise_magnitude = (1+rands[epoch])*noise_magnitude_init
+                    self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
                 
             # self.params = init_params
             # check_noise.append(self.one_prediction([0]*self.nqubits))
