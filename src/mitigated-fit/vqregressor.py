@@ -216,7 +216,6 @@ class vqregressor:
             observable = Hamiltonian(self.nqubits, observable, backend=self.backend)
         else:
             if self.target_qubit is not None:
-                print("Settings in case one qubit of the chip is selected")
                 circuit.add(gates.M(self.target_qubit))
                 observable = SymbolicHamiltonian(Z(0))
             else:
@@ -235,14 +234,11 @@ class vqregressor:
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
-            #self.backend.set_seed(None)
-            print("111111", circuit.execute(nshots=1000).frequencies())
-            print("222222", circuit.draw())
-            print("333333", observable.matrix)
-
-            obs = self.backend.execute_circuit(
-                circuit, nshots=self.nshots
-            ).expectation_from_samples(observable)
+            results = self.backend.execute_circuit(
+                            circuit=circuit,
+                            nshots=self.nshots)
+            freq = results.frequencies()
+            obs = observable.expectation_from_samples(freq)
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(
@@ -264,7 +260,8 @@ class vqregressor:
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
                 result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
-            obs = result.expectation_from_samples(observable)
+            freq = result.frequencies()
+            obs = observable.expectation_from_samples(freq)
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
@@ -569,10 +566,11 @@ class vqregressor:
         counter = 0
         for epoch in range(epochs):   
 
-            if epoch%self.noise_update == 0 and epoch != 0:
-                qm = (1+rands[epoch])*qm_init
-                noise_magnitude = (1+rands[epoch])*np.array(noise_magnitude_init)
-                self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
+            if self.noise_update is not None:
+                if epoch%self.noise_update == 0 and epoch != 0:
+                    qm = (1+rands[epoch])*qm_init
+                    noise_magnitude = (1+rands[epoch])*np.array(noise_magnitude_init)
+                    self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
                 
             if self.mitigation['step']:
                 self.params = init_params
@@ -630,7 +628,7 @@ class vqregressor:
 
                 # track the training
                 #print(
-                log.info(
+                print(
                     "Iteration "+
                     str(iteration)+
                     " epoch "+
