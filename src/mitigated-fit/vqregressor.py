@@ -247,7 +247,7 @@ class vqregressor:
             #self.backend.set_seed(None)
             circuit = self.transpile_circ(circuit)
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
-            obs = observable.expectation_from_samples(result.frequencies())
+            obs = observable.expectation_from_samples(result.frequencies()) #Add - for iqm simulation
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(
@@ -270,7 +270,7 @@ class vqregressor:
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
                 result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
-            obs = observable.expectation_from_samples(result.frequencies())
+            obs = observable.expectation_from_samples(result.frequencies()) #Add - for iqm
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
@@ -376,6 +376,8 @@ class vqregressor:
         """Derivatives of the expected value of the target observable with respect
         to the variational parameters of the circuit are performed via parameter-shift
         rule (PSR)."""
+
+        log.info(f"Evaluating gradient wrt to variable {x}")
         
         if self.backend.name == 'numpy':
             dcirc = np.array(Parallel(n_jobs=min(self.nthreads,self.nparams))(delayed(self.parameter_shift)(par,x) for par in range(self.nparams)))
@@ -588,19 +590,21 @@ class vqregressor:
                 check_noise.append(self.one_prediction(xs))
                 if epoch != 0:
                     self.params = new_params
-                    eps = abs((check_noise[epoch] - check_noise[epoch-1])/check_noise[epoch])
+                    eps = abs((check_noise[epoch] - check_noise[epoch-1]))#/check_noise[epoch])
+                    std = self.mit_params[1]
                     log.info(str(eps))
                     #eps_var = 0.1  ###############################################
                     if eps > self.noise_threshold: #eps_val = 0.1
-                        counter += 1
-                        log.info('Updating CDR params')
-                        self.mit_params, data = self.get_fit()
-                        std = self.mit_params[1]
-                        check = 2*std#4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
-                        log.info(str(eps)+' '+str(check))
-                        if check > self.noise_threshold:
-                            log.info('eps_var>'+str(check))
-                        cdr_history.append(data)
+                        if eps > std:
+                            counter += 1
+                            log.info('Updating CDR params')
+                            self.mit_params, data = self.get_fit()
+                            std = self.mit_params[1]
+                            #check = 2*std#4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
+                            log.info(str(eps)+' '+str(std))
+                            cdr_history.append(data)
+                        else:
+                            log.info('std='+str(std)+'>'+'thr='+str(self.noise_threshold))
 
             iteration = 0
 
@@ -628,12 +632,6 @@ class vqregressor:
                 elif method == "Standard":
                     grads, loss = self.evaluate_loss_gradients()
                     self.params -= learning_rate * grads
-                
-                grad_history.append(grads)
-                loss_history.append(loss)
-                if self.bp_bound:
-                    grad_bound_history.append(dloss_bound)
-                    loss_bound_history.append(loss_bound)
 
                 # track the training
                 #print(
@@ -648,6 +646,12 @@ class vqregressor:
 
                 if live_plotting:
                     self.show_predictions(f"liveshow", save=True, xscale=xscale)
+
+            grad_history.append(grads)
+            loss_history.append(loss)
+            if self.bp_bound:
+                grad_bound_history.append(dloss_bound)
+                loss_bound_history.append(loss_bound)
 
             np.save(
                 arr=self.params,

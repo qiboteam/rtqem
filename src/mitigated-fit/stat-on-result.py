@@ -277,7 +277,7 @@ def main(args):
         # np.save(arr=loss_history, file=f"{args.example}/{args.run_name}/loss_history_real_noise")
 
         # index_min = np.argmin(loss_history)
-        # print('Minimum loss', index_min + 1)
+        # log.info('Minimum loss'+str(index_min + 1))
 
         # best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_{setting}/params_epoch_{index_min+1}.npy")
         # VQR.noise_model = noise_setting
@@ -333,7 +333,13 @@ def main(args):
             pred = VQR.predict_sample()
             return pred
 
-        pred = Parallel(n_jobs=min(conf["nthreads"],nruns))(delayed(get_pred)(j) for j in range(nruns))
+        if backend.name == 'numpy':
+            pred = Parallel(n_jobs=min(conf["nthreads"],nruns))(delayed(get_pred)(j) for j in range(nruns))
+        else:
+            pred = []
+            for j in range(nruns):
+                log.info('run '+str(j+1))
+                pred.append(get_pred(j))
 
         predictions = np.asarray(pred)
 
