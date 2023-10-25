@@ -247,7 +247,7 @@ class vqregressor:
             #self.backend.set_seed(None)
             circuit = self.transpile_circ(circuit)
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
-            obs = observable.expectation_from_samples(result.frequencies()) #Add - for iqm simulation
+            obs =   observable.expectation_from_samples(result.frequencies()) #Add - for iqm simulation
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(
@@ -270,7 +270,7 @@ class vqregressor:
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
                 result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
-            obs = observable.expectation_from_samples(result.frequencies()) #Add - for iqm
+            obs =   observable.expectation_from_samples(result.frequencies()) #Add - for iqm
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
@@ -279,7 +279,7 @@ class vqregressor:
         return obs
 
     def fits_iter(self, mit_kwargs, rand_params):
-        mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples']}
+        mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples', 'readout']}
         self.circuit.set_parameters(rand_params)
         circuit, observable = self.epx_value()
         data = self.mitigation['method'](
@@ -582,20 +582,24 @@ class vqregressor:
                 qm = (1+rands[epoch])*qm_init
                 noise_magnitude = (1+rands[epoch])*np.array(noise_magnitude_init)
                 self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
-                
+   
             if self.mitigation['step']:
                 self.params = init_params
-                np.random.seed(123)
-                xs = np.random.rand(self.nqubits)*2*np.pi
+                #np.random.seed(123)
+                xs = [np.pi/3]*self.nqubits#np.random.rand(self.nqubits)*2*np.pi
                 check_noise.append(self.one_prediction(xs))
                 if epoch != 0:
                     self.params = new_params
-                    eps = abs((check_noise[epoch] - check_noise[epoch-1]))#/check_noise[epoch])
-                    std = self.mit_params[1]
+                    eps = abs((check_noise[epoch] - check_noise[epoch-1]))/2 #check_noise[epoch]
                     log.info(str(eps))
                     #eps_var = 0.1  ###############################################
                     if eps > self.noise_threshold: #eps_val = 0.1
-                        if eps > std:
+                        std = self.mit_params[1]
+                        dep = self.mit_params[0]
+                        #err_noise = 1/(a*np.sqrt(self.nshots)) + std*check_noise[epoch]/a**2
+                        #total_eps = (2/(a*np.sqrt(self.nshots)) + std/a**2)/check_noise[epoch] + (check_noise[epoch] - check_noise[epoch-1])*err_noise
+                        total_eps = (abs(1-check_noise[epoch])/np.sqrt(self.nshots) + abs(1-check_noise[epoch-1])/np.sqrt(self.nshots))/2
+                        if eps > total_eps:
                             counter += 1
                             log.info('Updating CDR params')
                             self.mit_params, data = self.get_fit()
@@ -604,7 +608,7 @@ class vqregressor:
                             log.info(str(eps)+' '+str(std))
                             cdr_history.append(data)
                         else:
-                            log.info('std='+str(std)+'>'+'thr='+str(self.noise_threshold))
+                            log.info('std='+str(total_eps)+'>'+'thr='+str(self.noise_threshold))
 
             iteration = 0
 
