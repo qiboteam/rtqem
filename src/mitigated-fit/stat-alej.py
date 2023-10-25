@@ -49,7 +49,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--platform",
-    default="qw5q_gold_qblox",
+    default="tii1q_b1",
     help="Platform on which we perform predictions.",
     type=str,
 )
@@ -63,13 +63,11 @@ parser.add_argument(
 
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
-ndata = 100
-nruns = 50
 
 
 def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_history, grad_history, grad_bound_history, color, label):
 
-    global ndata, nruns
+    #global ndata, nruns
     
     if len(np.shape(data)) != 1:
         data = data.T[0]
@@ -123,11 +121,9 @@ def main(args):
         conf = json.load(f)
 
     platform = conf["platform"]
-
-    set_backend("qibolab", platform=platform)
         
     # define dataset cardinality and number of executions
-    global ndata, nruns
+    nruns = 2
 
     # loading data 
     data, labels1, scaler = prepare_data(
@@ -147,7 +143,7 @@ def main(args):
         noise = None
 
     if conf["qibolab"]:        
-        backend = construct_backend("qibolab", platform=conf["platform"])
+        backend = construct_backend("qibolab", conf["platform"])
         #backend.transpiler = None
     else:
         set_backend('numpy')
@@ -186,19 +182,19 @@ def main(args):
     fit_axis.set_ylabel("y")
     #fit_fig.legend(loc=1, borderaxespad=3)
     loss_bound_history = 0
-    if conf["bp_bound"]:
-        params = noise.errors[gates.I][0][1].options
-        probs = [params[k][1] for k in range(3)]
-        bit_flip = noise.errors[gates.M][0][1].options[0,-1]#**(1/conf['nqubits'])
-        pred_bound = bound_pred(conf['nlayers'], conf['nqubits'], probs, bit_flip)
-        fit_axis.plot(data1, [pred_bound]*len(data), '--', c="black", alpha=0.7, lw=2, label="BP bound")
+    # if conf["bp_bound"]:
+    #     params = noise.errors[gates.I][0][1].options
+    #     probs = [params[k][1] for k in range(3)]
+    #     bit_flip = noise.errors[gates.M][0][1].options[0,-1]#**(1/conf['nqubits'])
+    #     pred_bound = bound_pred(conf['nlayers'], conf['nqubits'], probs, bit_flip)
+    #     fit_axis.plot(data1, [pred_bound]*len(data), '--', c="black", alpha=0.7, lw=2, label="BP bound")
 
-        loss_bound_history = 0
-        for y in labels:
-            if y - pred_bound > 0:
-                loss_bound_history += (y - pred_bound)**2
-        loss_bound_history /= len(labels)
-        log.info(str(loss_bound_history))
+    #     loss_bound_history = 0
+    #     for y in labels:
+    #         if y - pred_bound > 0:
+    #             loss_bound_history += (y - pred_bound)**2
+    #     loss_bound_history /= len(labels)
+    #     log.info(str(loss_bound_history))
 
     loss_grad_fig , loss_grad_axes = plt.subplots(2, 1, figsize=(5*2/3, 5*(8/6)*2/3))
     loss_grad_axes[0].set_title('Loss history')
@@ -253,6 +249,7 @@ def main(args):
             layers=conf["nlayers"],
             data=data,
             labels=labels1,
+            qubit_map=conf["qubit_map"],
             example=args.example,
             nqubits=conf["nqubits"],
             backend=backend,
@@ -279,7 +276,7 @@ def main(args):
         # np.save(arr=loss_history, file=f"{args.example}/{args.run_name}/loss_history_real_noise")
 
         # index_min = np.argmin(loss_history)
-        # print('Minimum loss', index_min + 1)
+        # log.info('Minimum loss'+str(index_min + 1))
 
         # best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_{setting}/params_epoch_{index_min+1}.npy")
         # VQR.noise_model = noise_setting
@@ -335,7 +332,13 @@ def main(args):
             pred = VQR.predict_sample()
             return pred
 
-        pred = Parallel(n_jobs=min(conf["nthreads"],nruns))(delayed(get_pred)(j) for j in range(nruns))
+        if backend.name == 'numpy':
+            pred = Parallel(n_jobs=min(conf["nthreads"],nruns))(delayed(get_pred)(j) for j in range(nruns))
+        else:
+            pred = []
+            for j in range(nruns):
+                log.info('run '+str(j+1))
+                pred.append(get_pred(j))
 
         predictions = np.asarray(pred)
 

@@ -5,6 +5,7 @@ import json
 import numpy as np
 import scipy
 import matplotlib.pyplot as plt
+from qibo.config import log
 
 def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_name:str=''):
     """
@@ -40,7 +41,7 @@ def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_
     if function == "sinus":
         labels = np.sin(2 * data)
     elif function == "hdw_target":
-        labels = np.exp(-data) * np.cos(3 * data) * 0.3
+        labels = np.sin(3 * data) + data**2
     elif function == "gamma":
         labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
     elif function == "gluon":
@@ -77,6 +78,9 @@ def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_
         plt.xlabel(r"x_0")
         plt.ylabel("y")
         plt.savefig("sampled_data.png")
+
+    nlab = len(labels)
+    log.info(f"ndata: {nlab}")
 
     # saving data
     np.save(file=function+"/data.npy", arr=data)
