@@ -12,6 +12,7 @@ from prepare_data import prepare_data
 from qibo import gates, set_backend, set_threads
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
+from qibo.config import log
 from qibo.noise import NoiseModel, PauliError, ReadoutError
 from savedata_utils import get_training_type
 #from uniplot import plot
@@ -38,11 +39,18 @@ nqubits = conf["nqubits"]
 layers = conf["nlayers"]
 ndata = conf["ndata"]
 
-# get string to identify the training type
-training_type = get_training_type(conf["mitigation"], conf["noise"])
-
 # prepare data
 data, labels, scaler = prepare_data(conf["function"], normalize=conf["normalize_data"], show_sample=False)
+
+
+if conf["qibolab"]:    
+    backend = construct_backend("qibolab", conf["platform"])
+    backend.transpiler = None
+else:
+    set_backend('numpy')
+    #set_threads(5)
+    backend = construct_backend('numpy')
+    #backend.set_threads(5)
 
 # noise parameters
 qm = conf["qm"]
@@ -62,23 +70,21 @@ if conf["noise"]:
         print('bound', bounds)
         np.save(f"{cache_dir}/pred_bound", np.array(bounds))
 else:
-    print("Noisless model is executed.")
+    if conf["qibolab"]:
+        log.info("Executing on real hardware")
+    else:    
+        log.info("Noisless model is executed.")
+    
     noise = None
 
-if conf["qibolab"]:    
-    backend = construct_backend("qibolab", conf["platform"])
-    backend.transpiler = None
-else:
-    set_backend('numpy')
-    #set_threads(5)
-    backend = construct_backend('numpy')
-    #backend.set_threads(5)
+# get string to identify the training type
+training_type = get_training_type(conf["mitigation"], conf["noise"], backend=backend)
     
 readout = {}
 if conf["mitigation"]["readout"] is not None:
     if conf["mitigation"]["readout"] == "calibration_matrix":
         cal_m = calibration_matrix(
-            1, backend=backend, noise_model=noise, nshots=conf["nshots"]
+            1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=conf["nshots"]
         )
         np.save(f"{cache_dir}/cal_matrix.npy", cal_m)
         readout["calibration_matrix"] = cal_m

@@ -63,8 +63,8 @@ parser.add_argument(
 
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
-ndata = 100
-nruns = 50
+ndata = 50
+nruns = 2
 
 
 def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_history, grad_history, grad_bound_history, color, label):
@@ -157,7 +157,7 @@ def main(args):
     if conf["mitigation"]["readout"] is not None:
         if conf["mitigation"]["readout"] == "calibration_matrix":
             cal_m = calibration_matrix(
-                1, backend=backend, noise_model=noise, nshots=conf["nshots"]
+                1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=5000
             )
             np.save(f"{cache_dir}/cal_matrix.npy", cal_m)
             readout["calibration_matrix"] = cal_m
@@ -221,16 +221,21 @@ def main(args):
             mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
             colors.append('blue')
             labels.append('No mitigation')
-        if f"best_params_{conf['optimizer']}_unmitigated" in f:
-            settings.append("unmitigated_step_no_final_no")
-            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":None})
-            colors.append('orange')
-            labels.append('Mitigation after training')
+        # if f"best_params_{conf['optimizer']}_unmitigated" in f:
+        #     settings.append("unmitigated_step_no_final_no")
+        #     mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":None})
+        #     colors.append('orange')
+        #     labels.append('Mitigation after training')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
             mitigation_settings.append({"step":True,"final":True,"method":"mit_obs","readout":None})
             colors.append('red')
             labels.append('Real time mitigation')
+        # if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
+        #     settings.append("realtime_mitigation_step_yes_final_yes")
+        #     mitigation_settings.append({"step":True,"final":False,"method":"mit_obs","readout":None})
+        #     colors.append('red')
+        #     labels.append('Mitigation training')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
             mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
@@ -251,6 +256,7 @@ def main(args):
 
         VQR = vqregressor(
             layers=conf["nlayers"],
+            qubit_map = conf["qubit_map"],
             data=data,
             labels=labels1,
             example=args.example,
@@ -279,7 +285,7 @@ def main(args):
         # np.save(arr=loss_history, file=f"{args.example}/{args.run_name}/loss_history_real_noise")
 
         # index_min = np.argmin(loss_history)
-        # print('Minimum loss', index_min + 1)
+        # log.info('Minimum loss'+str(index_min + 1))
 
         # best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_{setting}/params_epoch_{index_min+1}.npy")
         # VQR.noise_model = noise_setting
@@ -328,14 +334,20 @@ def main(args):
         #VQR.mit_params = VQR.get_fit()[0]
         def get_pred(j):
             #set_backend('numpy')
-            VQR.mit_params = None
+            #VQR.mit_params = None
             # if label == "Mitigation after training" or label=='Real time mitigation': 
             #     pred = np.asarray(VQR.predict_sample())*mit_params[0] + mit_params[1]
             # else: 
             pred = VQR.predict_sample()
             return pred
 
-        pred = Parallel(n_jobs=min(conf["nthreads"],nruns))(delayed(get_pred)(j) for j in range(nruns))
+        if backend.name == 'numpy':
+            pred = Parallel(n_jobs=min(conf["nthreads"],nruns))(delayed(get_pred)(j) for j in range(nruns))
+        else:
+            pred = []
+            for j in range(nruns):
+                log.info('run '+str(j+1))
+                pred.append(get_pred(j))
 
         predictions = np.asarray(pred)
 
@@ -351,6 +363,8 @@ def main(args):
 
         if label == 'Mitigation after training':
             setting = "unmitigated_step_no_final_yes"
+        if label == 'Mitigation training':
+            setting = "realtime_mitigation_step_yes_final_no"
         np.save(arr=means, file=f"{args.example}/{args.run_name}/means_{platform}_{setting}")
         np.save(arr=stds, file=f"{args.example}/{args.run_name}/stds_{platform}_{setting}")
 

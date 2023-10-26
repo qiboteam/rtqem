@@ -1,10 +1,16 @@
-def get_training_type(conf_mitigation, conf_noise):
+from qibo.config import log
+
+def get_training_type(conf_mitigation, conf_noise, backend):
     """
     Defines the training type according to the experiment configuration.
     
     Returns: a string for customizing the data saving.
     """
-    if conf_noise:
+    
+    log.info(f"Backend is {backend}")
+
+    if conf_noise  or "qibolab" in backend.name:
+        log.info("Entering noise configuration and setting job's name.")
         if conf_mitigation["method"] is None:
             if conf_mitigation["readout"] is None:
                 training_type = "unmitigated_"
