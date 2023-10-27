@@ -377,7 +377,7 @@ class vqregressor:
         to the variational parameters of the circuit are performed via parameter-shift
         rule (PSR)."""
 
-        log.info(f"Evaluating gradient wrt to variable {x}")
+        #log.info(f"Evaluating gradient wrt to variable {x}")
         
         if self.backend.name == 'numpy':
             dcirc = np.array(Parallel(n_jobs=min(self.nthreads,self.nparams))(delayed(self.parameter_shift)(par,x) for par in range(self.nparams)))

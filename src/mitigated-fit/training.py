@@ -40,7 +40,7 @@ layers = conf["nlayers"]
 ndata = conf["ndata"]
 
 # prepare data
-data, labels, scaler = prepare_data(conf["function"], normalize=conf["normalize_data"], show_sample=False)
+data, labels, scaler = prepare_data(conf["function"], normalize=conf["normalize_data"], show_sample=True)
 
 
 if conf["qibolab"]:    

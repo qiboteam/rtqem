@@ -18,6 +18,28 @@ def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_
     Returns sampled_data, labels, scaler
     """
 
+    def funct(z,m,j):
+        """
+        Generate the target function
+
+        Args:
+        - z the variable
+        -m the mass (a parameter that should go from 5 to 175 changing from 5 to 5 (5,175,5)
+        -j a scaling parameter(0, or 2) when j=1 g(z)=0
+        Returns:
+        - g: target function """
+
+        # We define the function
+
+        g = (m ** 3 * z ** 2) / (
+                    4 * np.pi ** 2 * (-1 + z) ** 4 * np.sqrt((m ** 2 * (1 + 2 * (-1 + z) * z)) / (-1 + z) ** 2)) - (
+                        m ** 3 * z ** 2 * (3 / 4 * (1 + j ** (np.log(3) / np.log(2))) ** 2 * m ** 2 * (-1 + z) ** 2 +
+                                        m ** 2 * (-1 + z * (2 + z)))) / (
+                        8 * np.pi ** 2 * (-1 + z) ** 4 * (1 / 4 * (1 + j ** (np.log(3) / np.log(2))) ** 2 * m ** 2 *
+                                                        (-1 + z) ** 2 + m ** 2 * z ** 2) * np.sqrt(
+                    1 / 4 * (1 + j ** (np.log(3) / np.log(2))) ** 2 * m ** 2 + (m ** 2 * z ** 2) / (-1 + z) ** 2))
+        return g
+
     if run_name != '':
         conf_file = f"{example}/{run_name}/{example}.conf"
     else:
@@ -31,7 +53,7 @@ def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_
     function = conf["function"]
 
     # random data
-    data = np.linspace(-1, 1, ndata)
+    data = np.linspace(0.001, 0.999, ndata)
     if ndim != 1:
         # creating matrix of data
         # ndim columns, ndata raws
@@ -41,7 +63,8 @@ def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_
     if function == "sinus":
         labels = np.sin(2 * data)
     elif function == "hdw_target":
-        labels = np.sin(3 * data) + data**2
+        labels = funct(z=data, m=5, j=0)
+        #scaler = lambda x: np.log(x)
     elif function == "gamma":
         labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
     elif function == "gluon":

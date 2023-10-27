@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mitsgd
-#SBATCH --output=test_3layers.log
+#SBATCH --output=test_gorka.log
 
 
-python training.py gluon
+python training.py hdw_target
