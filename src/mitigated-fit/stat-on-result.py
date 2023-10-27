@@ -64,7 +64,7 @@ parser.add_argument(
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
 ndata = 50
-nruns = 2
+nruns = 10
 
 
 def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_history, grad_history, grad_bound_history, color, label):
