@@ -1,17 +1,17 @@
 #!/bin/bash
 #SBATCH --job-name=stat_sgd
-#SBATCH --output=stat.log
+#SBATCH --output=stat_gorka.log
 
 
-# mkdir ./gluon/sgd
-# mkdir ./gluon/sgd/cache
+mkdir ./hdw_target/sgd_j_2
+mkdir ./hdw_target/sgd_j_2/cache
 
-# cp ./gluon/gluon.conf ./gluon/sgd/gluon.conf
+cp ./hdw_target/hdw_target.conf ./hdw_target/sgd_j_2/hdw_target.conf
 
-# cp ./gluon/cache/best_params_Adam_full_mitigation_step_yes_final_yes.npy ./gluon/sgd/cache/best_params_Adam_full_mitigation_step_yes_final_yes.npy
-# cp ./gluon/cache/grad_history_full_mitigation_step_yes_final_yes.npy ./gluon/sgd/cache/grad_history_full_mitigation_step_yes_final_yes.npy
-# cp ./gluon/cache/loss_history_full_mitigation_step_yes_final_yes.npy ./gluon/sgd/cache/loss_history_full_mitigation_step_yes_final_yes.npy
+cp ./hdw_target/cache/best_params_Adam_full_mitigation_step_yes_final_yes.npy ./hdw_target/sgd_j_2/cache/best_params_Adam_full_mitigation_step_yes_final_yes.npy
+cp ./hdw_target/cache/grad_history_full_mitigation_step_yes_final_yes.npy ./hdw_target/sgd_j_2/cache/grad_history_full_mitigation_step_yes_final_yes.npy
+cp ./hdw_target/cache/loss_history_full_mitigation_step_yes_final_yes.npy ./hdw_target/sgd_j_2/cache/loss_history_full_mitigation_step_yes_final_yes.npy
 
-# cp -r ./gluon/cache/params_history_full_mitigation_step_yes_final_yes ./gluon/sgd/cache/params_history_full_mitigation_step_yes_final_yes
+cp -r ./hdw_target/cache/params_history_full_mitigation_step_yes_final_yes ./hdw_target/sgd_j_2/cache/params_history_full_mitigation_step_yes_final_yes
 
-python stat-on-result.py gluon --run_name sgd 
+python stat-on-result.py hdw_target --run_name sgd_j_2 

@@ -63,7 +63,7 @@ def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_
     if function == "sinus":
         labels = np.sin(2 * data)
     elif function == "hdw_target":
-        labels = funct(z=data, m=5, j=0)
+        labels = funct(z=data, m=5, j=2)
         #scaler = lambda x: np.log(x)
     elif function == "gamma":
         labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
