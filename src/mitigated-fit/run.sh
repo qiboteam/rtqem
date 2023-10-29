@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mitsgd
-#SBATCH --output=test_3layers.log
+#SBATCH --output=long_gluon_run.log
 
 
 python training.py gluon
