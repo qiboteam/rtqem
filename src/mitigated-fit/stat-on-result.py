@@ -239,7 +239,7 @@ def main(args):
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
             mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
-            colors.append('orange')
+            colors.append('red')
             labels.append('Full mitigation')
 
     for setting, mitigation, color, label in zip(settings, mitigation_settings, colors, labels):
