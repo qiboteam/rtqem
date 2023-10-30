@@ -76,12 +76,17 @@ else:
     
 readout = {}
 if conf["mitigation"]["readout"] is not None:
-    if conf["mitigation"]["readout"] == "calibration_matrix":
+    if conf["mitigation"]["readout"][0] == "calibration_matrix":
+        if conf["mitigation"]["readout"][1] == "ibu":
+            inv = False
+        else:
+            inv = True
         cal_m = calibration_matrix(
-            1, backend=backend, noise_model=noise, nshots=conf["nshots"]
+            1, qubit_map=conf["qubit_map"], inv=inv, backend=backend, noise_model=noise, nshots=10000
         )
         np.save(f"{cache_dir}/cal_matrix.npy", cal_m)
         readout["calibration_matrix"] = cal_m
+        readout["inv"] = inv
     elif conf["mitigation"]["readout"] == "randomized":
         readout["ncircuits"] = 10
     else:

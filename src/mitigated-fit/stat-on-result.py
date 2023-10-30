@@ -153,19 +153,25 @@ def main(args):
 
     readout = {}
     if conf["mitigation"]["readout"] is not None:
-        if conf["mitigation"]["readout"] == "calibration_matrix":
+        if conf["mitigation"]["readout"][0] == "calibration_matrix":
+            if conf["mitigation"]["readout"][1] == "ibu":
+                inv = False
+            else:
+                inv = True
             cal_m = calibration_matrix(
-                1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=conf["nshots"]
+                1, qubit_map=conf["qubit_map"], inv=inv, backend=backend, noise_model=noise, nshots=100000
             )
+            log.info(cal_m)
             np.save(f"{cache_dir}/cal_matrix.npy", cal_m)
             readout["calibration_matrix"] = cal_m
+            readout["inv"] = inv
         elif conf["mitigation"]["readout"] == "randomized":
             readout["ncircuits"] = 10
         else:
             raise AssertionError("Invalid readout mitigation method specified.")
 
     mit_kwargs = {
-        "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 10000},
+        "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 1000},
         "mit_obs": {"n_training_samples": 10, "readout": readout, "nshots": 10000},
         None: {},
     }
@@ -234,11 +240,11 @@ def main(args):
         #     mitigation_settings.append({"step":True,"final":False,"method":"mit_obs","readout":None})
         #     colors.append('red')
         #     labels.append('Mitigation training')
-        if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
-            settings.append("full_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
-            colors.append('orange')
-            labels.append('Full mitigation')
+        # if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
+        #     settings.append("full_mitigation_step_yes_final_yes")
+        #     mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
+        #     colors.append('orange')
+        #     labels.append('Full mitigation')
 
     for setting, mitigation, color, label in zip(settings, mitigation_settings, colors, labels):
 
@@ -332,7 +338,14 @@ def main(args):
         #VQR.mit_params = VQR.get_fit()[0]
         def get_pred(j):
             #set_backend('numpy')
-            #VQR.mit_params = None
+
+            # cal = calibration_matrix(
+            #     1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=conf["nshots"]
+            # )
+            # VQR.mit_params = None
+            # VQR.mit_kwargs['readout']['calibration_matrix'] = cal
+            # log.info(str(cal))
+
             # if label == "Mitigation after training" or label=='Real time mitigation': 
             #     pred = np.asarray(VQR.predict_sample())*mit_params[0] + mit_params[1]
             # else: 

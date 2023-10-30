@@ -31,7 +31,7 @@ class vqregressor:
         layers,
         example,
         nqubits=1,
-        qubit_map = None,  
+        qubit_map = None,
         backend=None,
         nthreads=1,
         noise_model=None,
@@ -62,7 +62,7 @@ class vqregressor:
 
         if qubit_map == None:
             qubit_map = list(range(self.nqubits))
-            
+
         self.qubit_map = qubit_map
         self.noise_model = noise_model[0]
         self.noise_update = noise_model[1]
@@ -101,7 +101,7 @@ class vqregressor:
             self.mit_params = None
 
         qibo.set_backend("numpy")
-        
+
 
     # ---------------------------- ANSATZ ------------------------------------------
 
@@ -130,7 +130,7 @@ class vqregressor:
                 # add RZ if this is not the last layer
                 #if l != self.layers - 1:
                 c.add(gates.RZ(q=q, theta=0.5))
-            
+
             # add entangling layer between layers
             #if (l != self.layers - 1) and (self.nqubits > 1):
             if (self.nqubits > 1):
@@ -144,7 +144,7 @@ class vqregressor:
             c.add(Id)
 
         return c
-    
+
 
     # --------------------------- RE-UPLOADING -------------------------------------
 
@@ -154,7 +154,6 @@ class vqregressor:
         index = 0
         # make it work also if x is 1d
         x = np.atleast_1d(x)
-
         for l in range(self.layers):
             for q in range(self.nqubits):
                 # embed x
@@ -168,8 +167,8 @@ class vqregressor:
 
                 # add RZ if this is not the last layer
                 #if l != self.layers - 1:
-                params.append(self.params[index + 2] * x[q] + self.params[index + 3])
-                self.scale_factors[index + 2] = x[q]
+                params.append(self.params[index + 2] * self.scaler(x[q])/10 + self.params[index + 3])
+                self.scale_factors[index + 2] = self.scaler(x[q])/10
                 # we have four parameters per layer
                 index += 4
 
@@ -247,7 +246,7 @@ class vqregressor:
             #self.backend.set_seed(None)
             circuit = self.transpile_circ(circuit)
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
-            obs =   observable.expectation_from_samples(result.frequencies()) #Add - for iqm simulation
+            obs =  observable.expectation_from_samples(result.frequencies()) #Add - for iqm simulation
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(
@@ -270,7 +269,7 @@ class vqregressor:
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
                 result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
-            obs =   observable.expectation_from_samples(result.frequencies()) #Add - for iqm
+            obs =  observable.expectation_from_samples(result.frequencies()) #Add - for iqm
         else:
             #self.backend.set_seed(None)
             obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
@@ -293,7 +292,7 @@ class vqregressor:
             **mit_kwargs
         )
         return data
-   
+
     def get_fit(self, x=None):
         rand_params = np.random.uniform(-2*np.pi,2*np.pi,int(self.nparams/2))
         mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples','readout']}
@@ -378,7 +377,7 @@ class vqregressor:
         rule (PSR)."""
 
         log.info(f"Evaluating gradient wrt to variable {x}")
-        
+
         if self.backend.name == 'numpy':
             dcirc = np.array(Parallel(n_jobs=min(self.nthreads,self.nparams))(delayed(self.parameter_shift)(par,x) for par in range(self.nparams)))
         else:
@@ -435,7 +434,7 @@ class vqregressor:
                 dloss_bound += (2 * mse * bound_grads)**2
                 if y - bound_preds > 0:
                     loss_bound += (y - bound_preds)**2
-        
+
 
         return dloss / len(data), loss / len(data), np.sqrt(dloss_bound) / len(data), loss_bound / len(data)
 
@@ -470,7 +469,7 @@ class vqregressor:
         """
 
         grads, loss, dloss_bound, loss_bound  = self.evaluate_loss_gradients(data, labels)
-        
+
         m = beta_1 * m + (1 - beta_1) * grads
         v = beta_2 * v + (1 - beta_2) * grads * grads
         mhat = m / (1.0 - beta_1 ** (iteration + 1))
@@ -557,7 +556,7 @@ class vqregressor:
 
         # we track the loss history
         loss_history, grad_history, grad_bound_history, loss_bound_history = [], [], [], []
-        
+
         if self.mitigation['step'] is True:
             cdr_history = []
 
@@ -576,13 +575,13 @@ class vqregressor:
             noise_magnitude_init = [self.noise_model.errors[gates.I][0][1].options[j][1] for j in range(3)]#self.noise_model.errors[gates.I][0][1].options[0][1]
             #noise_magnitude_init = self.noise_model.errors[gates.I][0][1].options/4**self.nqubits
         counter = 0
-        for epoch in range(epochs):   
+        for epoch in range(epochs):
 
             if epoch%self.noise_update == 0 and epoch != 0:
                 qm = (1+rands[epoch])*qm_init
                 noise_magnitude = (1+rands[epoch])*np.array(noise_magnitude_init)
                 self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
-   
+
             if self.mitigation['step']:
                 self.params = init_params
                 #np.random.seed(123)
@@ -662,7 +661,7 @@ class vqregressor:
                 file=f"{cache_dir}/params_history_{train_type}/params_epoch_{epoch + restart + 1}",
             )
         log.info('CDR params updated '+str(counter)+' times')
-            
+
         name = ""
         if self.noise_model is not None:
             name += "noisy"
