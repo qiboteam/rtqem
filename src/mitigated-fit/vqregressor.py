@@ -89,7 +89,7 @@ class vqregressor:
         # get the number of parameters
         self.nparams = (nqubits * layers * 4) #- 2 * nqubits
         # set the initial value of the variational parameters
-        np.random.seed(42)
+        np.random.seed(123)
         self.params = np.random.randn(self.nparams)
         print("Initial guess:", self.params)
 
