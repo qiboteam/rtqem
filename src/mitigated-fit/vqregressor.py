@@ -11,8 +11,8 @@ from qibo.config import log
 from qibo.hamiltonians import Hamiltonian, SymbolicHamiltonian
 from qibo.models import Circuit
 from qibo.models import error_mitigation
+from qibo.models.error_mitigation import escircuit
 from qibo.symbols import Z
-
 from savedata_utils import get_training_type
 
 from bp_utils import bound_pred, bound_grad, generate_noise_model
@@ -167,11 +167,11 @@ class vqregressor:
 
                 # add RZ if this is not the last layer
                 #if l != self.layers - 1:
-                params.append(self.params[index + 2] * self.scaler(x[q])/10 + self.params[index + 3])
-                self.scale_factors[index + 2] = self.scaler(x[q])/10
+                params.append(self.params[index + 2] * x[q] + self.params[index + 3])
+                self.scale_factors[index + 2] = x[q]
                 # we have four parameters per layer
                 index += 4
-
+#  self.scaler(x[q])/10
         # update circuit's parameters
         self.circuit.set_parameters(params)
 
@@ -376,7 +376,7 @@ class vqregressor:
         to the variational parameters of the circuit are performed via parameter-shift
         rule (PSR)."""
 
-        log.info(f"Evaluating gradient wrt to variable {x}")
+        #log.info(f"Evaluating gradient wrt to variable {x}")
 
         if self.backend.name == 'numpy':
             dcirc = np.array(Parallel(n_jobs=min(self.nthreads,self.nparams))(delayed(self.parameter_shift)(par,x) for par in range(self.nparams)))
@@ -493,6 +493,28 @@ class vqregressor:
             zip(np.array_split(data, nbatches), np.array_split(labels, nbatches))
         )
 
+    def check_noise(self,circuit,observable):
+        # self.inject_data(x)
+        # circuit, observable = self.epx_value()
+        # circuit = escircuit(circuit, observable, backend = self.backend)[0]
+        if self.noise_model != None:
+            circuit = self.noise_model.apply(circuit)
+        if self.exp_from_samples:
+            #self.backend.set_seed(None)
+            circuit = self.transpile_circ(circuit)
+            result = self.backend.execute_circuit(circuit, nshots=self.nshots)
+            obs =  observable.expectation_from_samples(result.frequencies()) #Add - for iqm simulation
+        else:
+            #self.backend.set_seed(None)
+            obs = observable.expectation(
+                self.backend.execute_circuit(circuit, nshots=self.nshots).state()
+            )
+        if self.obs_hardware:
+            obs = np.sqrt(abs(obs))
+        return obs
+    
+
+
     # ---------------------- Gradient Descent ------------------------------------
     def gradient_descent(
         self,
@@ -575,6 +597,11 @@ class vqregressor:
             noise_magnitude_init = [self.noise_model.errors[gates.I][0][1].options[j][1] for j in range(3)]#self.noise_model.errors[gates.I][0][1].options[0][1]
             #noise_magnitude_init = self.noise_model.errors[gates.I][0][1].options/4**self.nqubits
         counter = 0
+        index = 0
+        xs = [np.pi/3]*self.nqubits
+        self.inject_data(xs)
+        circuit, observable = self.epx_value()
+        circuit = escircuit(circuit, observable, backend = self.backend)[0]
         for epoch in range(epochs):
 
             if epoch%self.noise_update == 0 and epoch != 0:
@@ -585,11 +612,13 @@ class vqregressor:
             if self.mitigation['step']:
                 self.params = init_params
                 #np.random.seed(123)
-                xs = [np.pi/3]*self.nqubits#np.random.rand(self.nqubits)*2*np.pi
-                check_noise.append(self.one_prediction(xs))
+                #np.random.rand(self.nqubits)*2*np.pi
+                pred = self.check_noise(circuit,observable)
+                check_noise.append(pred)
+                log.info(pred)
                 if epoch != 0:
                     self.params = new_params
-                    eps = abs((check_noise[epoch] - check_noise[epoch-1]))/2 #check_noise[epoch]
+                    eps = abs((check_noise[epoch] - check_noise[index])) #check_noise[epoch]
                     log.info(str(eps))
                     #eps_var = 0.1  ###############################################
                     if eps > self.noise_threshold: #eps_val = 0.1
@@ -597,12 +626,13 @@ class vqregressor:
                         dep = self.mit_params[0]
                         #err_noise = 1/(a*np.sqrt(self.nshots)) + std*check_noise[epoch]/a**2
                         #total_eps = (2/(a*np.sqrt(self.nshots)) + std/a**2)/check_noise[epoch] + (check_noise[epoch] - check_noise[epoch-1])*err_noise
-                        total_eps = (abs(1-check_noise[epoch])/np.sqrt(self.nshots) + abs(1-check_noise[epoch-1])/np.sqrt(self.nshots))/2
+                        total_eps = (abs(1-check_noise[epoch]**2)/np.sqrt(self.nshots) + abs(1-check_noise[index]**2)/np.sqrt(self.nshots))
                         if eps > total_eps:
                             counter += 1
                             log.info('Updating CDR params')
                             self.mit_params, data = self.get_fit()
                             std = self.mit_params[1]
+                            index = epoch
                             #check = 2*std#4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
                             log.info(str(eps)+' '+str(std))
                             cdr_history.append(data)

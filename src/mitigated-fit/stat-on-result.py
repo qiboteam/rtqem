@@ -63,8 +63,8 @@ parser.add_argument(
 
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
-ndata = 50
-nruns = 10
+ndata = 30
+nruns = 20
 
 
 def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_history, grad_history, grad_bound_history, color, label):
@@ -215,16 +215,16 @@ def main(args):
     files = os.listdir(f"{args.example}/{args.run_name}/cache/")
     settings, mitigation_settings, colors, labels = [], [], [], []
     for f in files:
-        if f"best_params_{conf['optimizer']}_noiseless" in f:
-            settings.append("noiseless")
-            mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
-            colors.append('green')
-            labels.append('Noiseless')
-        if f"best_params_{conf['optimizer']}_unmitigated" in f:
-            settings.append("unmitigated_step_no_final_no")
-            mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
-            colors.append('blue')
-            labels.append('No mitigation')
+        # if f"best_params_{conf['optimizer']}_noiseless" in f:
+        #     settings.append("noiseless")
+        #     mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
+        #     colors.append('green')
+        #     labels.append('Noiseless')
+        # if f"best_params_{conf['optimizer']}_unmitigated" in f:
+        #     settings.append("unmitigated_step_no_final_no")
+        #     mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
+        #     colors.append('blue')
+        #     labels.append('No mitigation')
         # if f"best_params_{conf['optimizer']}_unmitigated" in f:
         #     settings.append("unmitigated_step_no_final_no")
         #     mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":None})
@@ -240,11 +240,11 @@ def main(args):
         #     mitigation_settings.append({"step":True,"final":False,"method":"mit_obs","readout":None})
         #     colors.append('red')
         #     labels.append('Mitigation training')
-        # if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
-        #     settings.append("full_mitigation_step_yes_final_yes")
-        #     mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
-        #     colors.append('orange')
-        #     labels.append('Full mitigation')
+        if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
+            settings.append("full_mitigation_step_yes_final_yes")
+            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
+            colors.append('orange')
+            labels.append('Full mitigation')
 
     for setting, mitigation, color, label in zip(settings, mitigation_settings, colors, labels):
 
@@ -335,7 +335,7 @@ def main(args):
         #         predictions.append(VQR.predict_sample())
 
         # predictions = np.asarray(predictions)
-        #VQR.mit_params = VQR.get_fit()[0]
+        VQR.mit_params = VQR.get_fit()[0]
         def get_pred(j):
             #set_backend('numpy')
 
