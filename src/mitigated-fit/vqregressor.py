@@ -67,6 +67,7 @@ class vqregressor:
         self.noise_model = noise_model[0]
         self.noise_update = noise_model[1]
         self.noise_threshold = noise_model[2]
+        self.evolution_model = noise_model[3]
         self.bp_bound = bp_bound
         self.nshots = nshots
         self.exp_from_samples = expectation_from_samples
@@ -589,7 +590,7 @@ class vqregressor:
 
         # cycle over the epochs
         np.random.seed(1234)
-        rands = np.random.uniform(0, 2, epochs)
+        # normal sampling
         check_noise=[]
         init_params = self.params
         if self.noise_model != None:
@@ -602,11 +603,46 @@ class vqregressor:
         self.inject_data(xs)
         circuit, observable = self.epx_value()
         circuit = escircuit(circuit, observable, backend = self.backend)[0]
+        
+
+        if self.evolution_model is not None:
+            # set to false if you don't want many logs
+            noise_verbosity = True
+
+            log.info(f"Noise is evolved following the model: {self.evolution_model}.")
+            if self.evolution_model == "heating":
+                rands = np.random.uniform(0, 0.01, (epochs, 3))
+            if self.evolution_model == "diffusion":
+                rands = np.random.normal(0, 0.04, (epochs, 3))
+
+            # support variable to compute the drift
+            old_noise_magnitude = noise_magnitude_init
+
+            # track loss bound history and noise magnitude sqrt(qx^2 + qy^2 + qz^2)
+            loss_bound_evolution = []
+            noise_radii = []
+
         for epoch in range(epochs):
 
             if epoch%self.noise_update == 0 and epoch != 0:
-                qm = (1+rands[epoch])*qm_init
-                noise_magnitude = (1+rands[epoch])*np.array(noise_magnitude_init)
+                #qm = (1+rands[epoch])*qm_init
+                # fix the readout noise for now 
+                qm = qm_init
+
+                # the noise magnitude is updated according to the chosen strategy
+                noise_magnitude = (1+rands[epoch])*np.array(old_noise_magnitude)
+
+                if noise_verbosity:
+                    log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
+                    log.info(f"Noise magnitude drift: {np.sqrt(np.sum(np.array(old_noise_magnitude)**2))} --> {np.sqrt(np.sum(np.array(noise_magnitude)**2))}")
+
+                # tracking
+                loss_bound_evolution.append(bound_pred(self.layers, self.nqubits, noise_magnitude))
+                noise_radii.append(np.sqrt(np.sum(noise_magnitude**2)))
+                
+                # update the old_noise_magnitude
+                old_noise_magnitude = noise_magnitude
+                
                 self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
 
             if self.mitigation['step']:
@@ -722,7 +758,7 @@ class vqregressor:
 
         self.params = best_params
 
-        return loss_history
+        return loss_history, loss_bound_evolution, noise_radii
 
     # ------------------------ LOSS FUNCTION ---------------------------------------
 

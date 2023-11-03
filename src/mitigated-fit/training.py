@@ -6,6 +6,8 @@ import time
 from functools import reduce
 from itertools import product
 
+import matplotlib.pyplot as plt 
+
 import numpy as np
 from bp_utils import bound_pred, generate_noise_model
 from prepare_data import prepare_data
@@ -109,7 +111,7 @@ VQR = vqregressor(
     obs_hardware=conf["obs_hardware"],
     backend=backend,
     nthreads=conf["nthreads"],
-    noise_model=[noise, conf["noise_update"], conf["noise_threshold"]],
+    noise_model=[noise, conf["noise_update"], conf["noise_threshold"], conf["evolution_model"]],
     bp_bound=conf["bp_bound"],
     mitigation=conf["mitigation"],
     mit_kwargs=mit_kwargs[conf["mitigation"]["method"]],
@@ -123,7 +125,7 @@ if conf["optimizer"] == "Adam":
     epochs = conf["epochs"]
     learning_rate = conf["learning_rate"]
     # perform the training
-    history = VQR.gradient_descent(
+    history, bound_history, noise_radii = VQR.gradient_descent(
         learning_rate=learning_rate,
         epochs=epochs,
         restart_from_epoch=conf["restart_from_epoch"],
@@ -147,3 +149,6 @@ print(f"Execution time required: ", (end - start))
 
 VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.params)
+
+np.save(arr=bound_history, file="bounds")
+np.save(arr=noise_radii, file="noise_radii")
