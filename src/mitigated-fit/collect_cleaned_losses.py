@@ -23,7 +23,6 @@ parser.add_argument(
     type=str,
 )
 
-
 updates = ["Inf", "035", "03", "025", "02", "015", "01", "005", "0"]
 
 def main(args):

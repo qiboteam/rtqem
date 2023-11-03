@@ -6,7 +6,7 @@ updates = ["Inf", "0.35", "0.3", "0.25", "0.2", "0.15", "0.1", "0.05", "0"]
 indices = [0, 2, 4, 6, 8]
 
 losses = np.load("cleaned_losses.npy")
-colors = sns.color_palette("tab20", n_colors=len(updates)).as_hex()
+colors = sns.color_palette("magma", n_colors=len(updates)).as_hex()
 
 m = min(losses[2])
 mi = np.argmin(losses[2])

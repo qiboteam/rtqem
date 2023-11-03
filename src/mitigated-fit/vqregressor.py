@@ -68,6 +68,7 @@ class vqregressor:
         self.noise_update = noise_model[1]
         self.noise_threshold = noise_model[2]
         self.evolution_model = noise_model[3]
+        self.evolution_parameter = noise_model[4]
         self.bp_bound = bp_bound
         self.nshots = nshots
         self.exp_from_samples = expectation_from_samples
@@ -611,9 +612,9 @@ class vqregressor:
 
             log.info(f"Noise is evolved following the model: {self.evolution_model}.")
             if self.evolution_model == "heating":
-                rands = np.random.uniform(0, 0.01, (epochs, 3))
+                rands = np.random.uniform(0, self.evolution_parameter, (epochs, 3))
             if self.evolution_model == "diffusion":
-                rands = np.random.normal(0, 0.04, (epochs, 3))
+                rands = np.random.normal(0, self.evolution_parameter, (epochs, 3))
 
             # support variable to compute the drift
             old_noise_magnitude = noise_magnitude_init
@@ -634,15 +635,15 @@ class vqregressor:
 
                 if noise_verbosity:
                     log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
-                    log.info(f"Noise magnitude drift: {np.sqrt(np.sum(np.array(old_noise_magnitude)**2))} --> {np.sqrt(np.sum(np.array(noise_magnitude)**2))}")
+                    log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
 
                 # tracking
                 loss_bound_evolution.append(bound_pred(self.layers, self.nqubits, noise_magnitude))
-                noise_radii.append(np.sqrt(np.sum(noise_magnitude**2)))
+                noise_radii.append(np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2))
                 
                 # update the old_noise_magnitude
                 old_noise_magnitude = noise_magnitude
-                
+
                 self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
 
             if self.mitigation['step']:
