@@ -16,5 +16,5 @@ plt.plot(bounds)
 plt.title("Bound")
 plt.xlabel("Epochs")
 plt.ylabel("BP bound")
-plt.savefig("noise_analysis.png")
+plt.savefig("noise_analysis.png", bbox_inches="tight")
 
