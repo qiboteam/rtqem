@@ -23,7 +23,7 @@ parser.add_argument(
     type=str,
 )
 
-updates = ["Inf", "035", "03", "025", "02", "015", "01", "005", "0"]
+updates = ["0075", "005", "0025", "00"]
 
 def main(args):
 
@@ -53,7 +53,7 @@ def main(args):
         example=args.example,
         nqubits=conf["nqubits"],
         nshots=conf["nshots"],
-        noise_model=[None, None, None],
+        noise_model=[None, None, None, None, None],
         expectation_from_samples=conf["expectation_from_samples"],
         bp_bound=conf["bp_bound"],
         scaler=scaler,
@@ -65,7 +65,7 @@ def main(args):
         this_loss = []
         print(f"update every {run}")
         for i in tqdm(range(100)):
-            params = np.load(f"{args.collection_path}/4q_update{run}/cache/params_history_realtime_mitigation_step_yes_final_yes/params_epoch_{i+1}.npy")
+            params = np.load(f"{args.collection_path}/evol_{run}/cache/params_history_realtime_mitigation_step_yes_final_yes/params_epoch_{i+1}.npy")
             this_loss.append(VQR.loss(params=params))
         losses.append(this_loss)
     

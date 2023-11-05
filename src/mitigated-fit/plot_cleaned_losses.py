@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-updates = ["Inf", "0.35", "0.3", "0.25", "0.2", "0.15", "0.1", "0.05", "0"]
-indices = [0, 2, 4, 6, 8]
+updates = ["0.075", "0.05", "0.025", "0.0"]
+indices = [0, 1, 2, 3]
 
 losses = np.load("cleaned_losses.npy")
 colors = sns.color_palette("magma", n_colors=len(updates)).as_hex()

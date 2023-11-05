@@ -624,7 +624,7 @@ class vqregressor:
             noise_radii = []
 
         for epoch in range(epochs):
-
+            log.info(f"Epoch {epoch}")
             if epoch%self.noise_update == 0 and epoch != 0:
                 #qm = (1+rands[epoch])*qm_init
                 # fix the readout noise for now 
@@ -633,9 +633,8 @@ class vqregressor:
                 # the noise magnitude is updated according to the chosen strategy
                 noise_magnitude = (1+rands[epoch])*np.array(old_noise_magnitude)
 
-                if noise_verbosity:
-                    log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
-                    log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
+                log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
+                log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
 
                 # tracking
                 loss_bound_evolution.append(bound_pred(self.layers, self.nqubits, noise_magnitude))
