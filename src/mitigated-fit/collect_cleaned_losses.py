@@ -23,7 +23,7 @@ parser.add_argument(
     type=str,
 )
 
-updates = ["0075", "005", "0025", "00"]
+updates = ["000", "1e-4", "1e-3", "5e-3", "1e-2", "2.5e-2", "5e-2", "7.5e-2", "1e-1", "1.5e-1", "2e-1", "3e-1", "4e-1"]
 
 def main(args):
 

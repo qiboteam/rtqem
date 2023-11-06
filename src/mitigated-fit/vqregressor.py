@@ -631,7 +631,7 @@ class vqregressor:
                 qm = qm_init
 
                 # the noise magnitude is updated according to the chosen strategy
-                noise_magnitude = (1+rands[epoch])*np.array(old_noise_magnitude)
+                noise_magnitude = (1+np.abs(rands[epoch]))*np.array(old_noise_magnitude)
 
                 log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
                 log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
@@ -663,17 +663,17 @@ class vqregressor:
                         #err_noise = 1/(a*np.sqrt(self.nshots)) + std*check_noise[epoch]/a**2
                         #total_eps = (2/(a*np.sqrt(self.nshots)) + std/a**2)/check_noise[epoch] + (check_noise[epoch] - check_noise[epoch-1])*err_noise
                         total_eps = (abs(1-check_noise[epoch]**2)/np.sqrt(self.nshots) + abs(1-check_noise[index]**2)/np.sqrt(self.nshots))
-                        if eps > total_eps:
-                            counter += 1
-                            log.info('Updating CDR params')
-                            self.mit_params, data = self.get_fit()
-                            std = self.mit_params[1]
-                            index = epoch
-                            #check = 2*std#4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
-                            log.info(str(eps)+' '+str(std))
-                            cdr_history.append(data)
-                        else:
-                            log.info('std='+str(total_eps)+'>'+'thr='+str(self.noise_threshold))
+                        #if eps > total_eps:
+                        counter += 1
+                        log.info('Updating CDR params')
+                        self.mit_params, data = self.get_fit()
+                        std = self.mit_params[1]
+                        index = epoch
+                        #check = 2*std#4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
+                        log.info(str(eps)+' '+str(std))
+                        cdr_history.append(data)
+                        #else:
+                        #log.info('std='+str(total_eps)+'>'+'thr='+str(self.noise_threshold))
 
             iteration = 0
 
