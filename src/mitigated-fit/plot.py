@@ -67,7 +67,7 @@ def plot(fit_axis, loss_axis, grad_axis, data, means, stds, loss_history, grad_h
         hatch="//",
         color=color,
     )
-    if label != "Mitigation after training":
+    if label != "fQEM":
         # plot loss history
         loss_axis.plot(loss_history, c=color, lw=1.5, alpha=0.8, label=label)
         loss_axis.set_yscale('log')
@@ -108,19 +108,24 @@ def main(args):
 
     fit_fig , fit_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
     fit_axis.plot(data1, true_labels, c="black", lw=1.5, alpha=0.8, label="Target function")
-    #fit_axis.set_title(r'$N_{\text{dim}}=4$', fontsize=12)
+    #fit_axis.set_title(r'$N_{\text{dim}}=8$', fontsize=12)
     fit_axis.set_xlabel("x")
     fit_axis.set_ylabel("y")
 
     loss_fig , loss_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
-    #loss_axis.set_title(r'$N_{\text{dim}}=4$', fontsize=12)
+    #loss_axis.set_title(r'$N_{\text{dim}}=8$', fontsize=12)
     loss_axis.set_xlabel('Epoch')
     loss_axis.set_ylabel("Loss")
+    plt.sca(loss_axis)
+    plt.xticks([0,20,40,60,80,100], [0,20,40,60,80,100])
 
     grad_fig , grad_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
-    #grad_axis.set_title(r'$N_{\text{dim}}=8$', fontsize=12)
+    grad_axis.set_title(r'$N_{\text{dim}}=4$', fontsize=12)
+    #grad_axis.set_title(r'u PDF', fontsize=12)
     grad_axis.set_xlabel('Epoch')
-    grad_axis.set_ylabel('Grad')
+    #grad_axis.set_ylabel('Grad')
+    plt.sca(grad_axis)
+    plt.xticks([0,20,40,60,80,100], [0,20,40,60,80,100])
 
 
     settings, colors, labels = [], [], []
@@ -133,15 +138,15 @@ def main(args):
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
             colors.append('#4287f5')
-            labels.append('No mitigation')
+            labels.append('Noisy')
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
             colors.append('orange')
-            labels.append('Mitigation after training')
+            labels.append('fQEM')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
             colors.append('#f54242')
-            labels.append('Real time mitigation')
+            labels.append('RTQEM')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
             colors.append('orange')
@@ -151,7 +156,7 @@ def main(args):
 
         loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
         grad_history = np.load(f"{args.example}/{args.run_name}/cache/grad_history_{setting}.npy")
-        if label == 'Mitigation after training':
+        if label == 'fQEM':
             setting = "unmitigated_step_no_final_yes"
         means = np.load(f"{args.example}/{args.run_name}/means_{platform}_{setting}.npy")
         stds = np.load(f"{args.example}/{args.run_name}/stds_{platform}_{setting}.npy")
@@ -177,9 +182,14 @@ def main(args):
 
     if args.legends == "true":
         fit_axis.legend(loc=3, fontsize=7) 
-        loss_axis.legend(loc=1, fontsize=7)
+        #loss_axis.legend(loc=1, fontsize=7)
+        grad_axis.legend(loc=0, fontsize=7)
 
     fit_axis.set_xscale(conf["xscale"])
+
+    # plt.sca(fit_axis)
+    # plt.xticks([-1,-0.5,0,0.5,1], [-1,-0.5,0,0.5,1])
+
     fit_fig.savefig(f"{args.example}/{args.run_name}/{args.run_name}.pdf", bbox_inches='tight', dpi=200)
     loss_fig.savefig(f"{args.example}/{args.run_name}/{args.run_name}_loss.pdf", bbox_inches='tight', dpi=200)
     grad_fig.savefig(f"{args.example}/{args.run_name}/{args.run_name}_grad.pdf", bbox_inches='tight', dpi=200)

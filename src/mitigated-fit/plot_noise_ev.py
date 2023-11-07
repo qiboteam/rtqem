@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-# import scienceplots
+import scienceplots
 
 from tqdm import tqdm 
 from qibo.config import log
@@ -21,7 +21,7 @@ from joblib import Parallel, delayed
 import qibo
 
 qibo.set_backend('numpy')
-# plt.style.use(['science','no-latex'])
+plt.style.use(['science'])
 
 # mpl.rcParams.update({'font.size': 13})
 # mpl.rcParams['xtick.major.size'] = 10
@@ -73,6 +73,8 @@ def loss(labels, predictions):
 
     return loss / len(labels)
 
+
+nruns = 10
 
 
 def main(args):
@@ -137,40 +139,72 @@ def main(args):
             "readout": readout,
         },
         None: {},
+        "mit_obs": {"n_training_samples": 20, "readout": readout, "nshots": 10000},
     }   
 
     mitigation = {"step":True,"final":True,"method":"CDR","readout":None}
 
+
     VQR = vqregressor(
+        nqubits=conf["nqubits"],
+        qubit_map = conf["qubit_map"],
         layers=conf["nlayers"],
         data=data,
         labels=labels,
-        example=args.example,
-        nqubits=conf["nqubits"],
-        backend=backend,
         nshots=conf["nshots"],
         expectation_from_samples=conf["expectation_from_samples"],
-        noise_model=[noise_setting,None],
+        obs_hardware=conf["obs_hardware"],
+        backend=backend,
+        nthreads=conf["nthreads"],
+        noise_model=[noise, conf["noise_update"], conf["noise_threshold"]],
         bp_bound=conf["bp_bound"],
-        mitigation=mitigation,
-        mit_kwargs=mit_kwargs[mitigation["method"]],
+        mitigation=conf["mitigation"],
+        mit_kwargs=mit_kwargs[conf["mitigation"]["method"]],
         scaler=scaler,
+        example=args.example,
     )
     #VQR.mit_params = VQR.get_fit()[0]
 
-    fit_fig , fit_axis = plt.subplots(1, 1, figsize=(5*2/3, 5*(6/8)*2/3))
+    width = 1/2
+    fit_fig , fit_axis = plt.subplots(1, 1, figsize=(8 * width, 8 * (6/8) * width))
 
-    run_names = ['All_3', '10_3', '20_3', '30_3', '40_3', '50_3', '60_3', '70_3', '80_3', '90_3', '100_3', '_no_3']
-
-    loss_list=[]
+    run_names = ['0', '01', '02', '03', '035']
+    x = [0,0.1,0.2,0.3,0.35]
+    means = []
+    stds = []
     for run_name in run_names:
+        # best_params = np.load(f"{args.example}/4q_update{run_name}/cache/best_params_Adam_realtime_mitigation_step_yes_final_yes.npy")
+        # #best_params = np.load(f"{args.example}/4q_update{run_name}/cache/params_history_realtime_mitigation_step_yes_final_yes/params_epoch_100.npy")
+        # VQR.set_parameters(best_params)
+        # loss = []
+        # for _ in range(nruns):
+        #     loss.append(VQR.loss())
+        # mean = np.mean(loss)
+        # std = np.std(loss)
 
-        loss = np.load(f"{args.example}/benchmark_4_new_update{run_name}/loss_history_real_noise.npy")#means_{platform}_realtime_mitigation_step_yes_final_yes.npy")
+        #loss = np.load(f"{args.example}/4q_update{run_name}/cache/loss_history_realtime_mitigation_step_yes_final_yes.npy")#means_{platform}_realtime_mitigation_step_yes_final_yes.npy")
+        #loss = np.load(f"{args.example}/4q_update{run_name}/loss_history_real_noise.npy")
+        loss = np.load(f"{args.example}/4q_update{run_name}/cache/loss_history_realtime_mitigation_step_yes_final_yes.npy")
+        mean = loss[-1]
 
-        loss_list.append(np.min(loss[0:40]))#loss(labels,means))
-    
-    fit_axis.scatter(list(range(len(run_names))),loss_list)
-    fit_fig.savefig(f"{args.example}/noise_ev.pdf", bbox_inches='tight')
+        #loss_list.append(np.min(loss))#loss(labels,means))
+        means.append(mean)
+        #stds.append(std)
+    means = np.array(means)
+    stds = np.array(stds)
+    fit_axis.scatter(x,means)
+    # fit_axis.fill_between(
+    #     x,
+    #     means - stds,
+    #     means + stds,
+    #     alpha=0.2,
+    #     hatch="//",
+    # )
+    #fit_axis.errorbar(x, means, yerr=stds, fmt='o')
+    fit_axis.ticklabel_format(axis='y', style='sci', scilimits=(0,0), useMathText=True)
+    fit_axis.set_xlabel('Noise threshold')
+    fit_axis.set_ylabel('Minimum loss')
+    fit_fig.savefig(f"{args.example}/4q_update{run_name}/noise_ev.pdf", bbox_inches='tight')
 
 
 if __name__ == "__main__":
