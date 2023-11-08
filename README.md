@@ -14,7 +14,7 @@ if the system is changed too much from the last time the map was learn.
 
 A schematic representation of the algorithm follows:
 
-![rtqem](doc/figures/rtqem.pdf)
+[rtqem](doc/figures/rtqem.pdf)
 
 ### Introduction to the usage
 
