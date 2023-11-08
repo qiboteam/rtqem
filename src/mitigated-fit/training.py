@@ -3,20 +3,19 @@ import argparse
 import json
 import os
 import time
-from functools import reduce
-from itertools import product
 
-import matplotlib.pyplot as plt 
-
+# extra dependencies
 import numpy as np
-from bp_utils import bound_pred, generate_noise_model
-from prepare_data import prepare_data
-from qibo import gates, set_backend, set_threads
+
+# qibo's
+from qibo import gates, set_backend
 from qibo.backends import construct_backend
 from qibo.models.error_mitigation import calibration_matrix
-from qibo.noise import NoiseModel, PauliError, ReadoutError
+
+# rtqem 
+from bp_utils import bound_pred, generate_noise_model
+from prepare_data import prepare_data
 from savedata_utils import get_training_type
-#from uniplot import plot
 from vqregressor import vqregressor
 
 parser = argparse.ArgumentParser(description="Training the vqregressor")
@@ -28,7 +27,7 @@ args = parser.parse_args()
 if args.example[-1] == "/":
     args.example = args.example[:-1]
 
-cache_dir = f"{args.example}/cache"
+cache_dir = f"targets/{args.example}/cache"
 if not os.path.exists(cache_dir):
     os.makedirs(cache_dir)
 
@@ -147,7 +146,7 @@ print(f"Execution time required: ", (end - start))
 # best_params = np.load('gluon/best_params_Adam.npy',allow_pickle=True)
 # VQR.params = best_params
 
-VQR.show_predictions(f"{args.example}/predictions_{conf['optimizer']}", save=True)
+VQR.show_predictions(f"targets/{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.params)
 
 np.save(arr=bound_history, file="bounds")
