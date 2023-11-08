@@ -23,7 +23,10 @@ parser.add_argument(
     type=str,
 )
 
-updates = ["000", "1e-4", "1e-3", "5e-3", "1e-2", "2.5e-2", "5e-2", "7.5e-2", "1e-1", "1.5e-1", "2e-1", "3e-1", "4e-1"]
+updates = ["0.0", "0.001", "0.005", "0.01", "0.05", "0.1", "0.5", "100"] 
+#updates = ["0.0", "0.01", "0.1", "0.5", "1"]
+
+NEPOCHS = 100
 
 def main(args):
 
@@ -32,6 +35,7 @@ def main(args):
         conf = json.load(f)
 
     losses = []
+    noisy_losses = []
 
     # --------------------------------- SETUP       
 
@@ -64,14 +68,16 @@ def main(args):
     for run in updates:
         this_loss = []
         print(f"update every {run}")
-        for i in tqdm(range(100)):
+        for i in tqdm(range(NEPOCHS)):
             params = np.load(f"{args.collection_path}/evol_{run}/cache/params_history_realtime_mitigation_step_yes_final_yes/params_epoch_{i+1}.npy")
             this_loss.append(VQR.loss(params=params))
         losses.append(this_loss)
+        #noisy_losses.append(np.load(f"{args.collection_path}/evol_{run}/cache/loss_history_realtime_mitigation_step_yes_final_yes.npy"))
     
     losses = np.array(losses)
+    #noisy_losses = np.array(noisy_losses)
     np.save(arr=losses, file="cleaned_losses")
-
+    #np.save(arr=noisy_losses, file="noisy_losses")
 
 if __name__ == "__main__":
     args = parser.parse_args()

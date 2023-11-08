@@ -495,7 +495,7 @@ class vqregressor:
             zip(np.array_split(data, nbatches), np.array_split(labels, nbatches))
         )
 
-    def check_noise(self,circuit,observable):
+    def check_noise(self, circuit, observable):
         # self.inject_data(x)
         # circuit, observable = self.epx_value()
         # circuit = escircuit(circuit, observable, backend = self.backend)[0]
@@ -551,7 +551,7 @@ class vqregressor:
                 )
             )
 
-        cache_dir = f"{self.example}/cache"
+        cache_dir = f"{self.example}/cache_{self.noise_threshold}"
 
         if self.noise_model is not None:
             noise = True
@@ -593,11 +593,12 @@ class vqregressor:
         np.random.seed(1234)
         # normal sampling
         check_noise=[]
-        init_params = self.params
+        init_params = self.params.copy()
         if self.noise_model != None:
             qm_init = self.noise_model.errors[gates.M][0][1].options[0,-1]
             noise_magnitude_init = [self.noise_model.errors[gates.I][0][1].options[j][1] for j in range(3)]#self.noise_model.errors[gates.I][0][1].options[0][1]
             #noise_magnitude_init = self.noise_model.errors[gates.I][0][1].options/4**self.nqubits
+
         counter = 0
         index = 0
         xs = [np.pi/3]*self.nqubits
@@ -605,16 +606,36 @@ class vqregressor:
         circuit, observable = self.epx_value()
         circuit = escircuit(circuit, observable, backend = self.backend)[0]
         
+        def random_step(point, var=0.005):
+            """Random gaussian step on a 3D lattice."""
+            new_point = []
+            for dim in range(3):
+                rand01 = random.random()    
+                if (rand01 >= 0.5): 
+                    sgn = +1
+                else:
+                    sgn = -1
+                new_point.append(point[dim] + sgn * random.gauss(0, var))
+            return new_point
 
         if self.evolution_model is not None:
             # set to false if you don't want many logs
             noise_verbosity = True
 
             log.info(f"Noise is evolved following the model: {self.evolution_model}.")
+
             if self.evolution_model == "heating":
                 rands = np.random.uniform(0, self.evolution_parameter, (epochs, 3))
             if self.evolution_model == "diffusion":
                 rands = np.random.normal(0, self.evolution_parameter, (epochs, 3))
+            if self.evolution_model == "random_walk":
+                random.seed(424242)
+                noise_magnitudes = []
+                nm = noise_magnitude_init
+                for _ in range(epochs):
+                    nm = random_step(nm, self.evolution_parameter)
+                    noise_magnitudes.append(nm)
+                noise_magnitudes = np.array(noise_magnitudes)
 
             # support variable to compute the drift
             old_noise_magnitude = noise_magnitude_init
@@ -631,10 +652,14 @@ class vqregressor:
                 qm = qm_init
 
                 # the noise magnitude is updated according to the chosen strategy
-                noise_magnitude = (1+np.abs(rands[epoch]))*np.array(old_noise_magnitude)
+                if self.evolution_model == "heating" or self.evolution_model == "diffusion":
+                    noise_magnitude = abs(1+rands[epoch])*np.array(old_noise_magnitude)
+                elif self.evolution_model == "random_walk":
+                    noise_magnitude = noise_magnitudes[epoch]
 
-                log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
-                log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
+                if noise_verbosity:
+                    log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
+                    log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
 
                 # tracking
                 loss_bound_evolution.append(bound_pred(self.layers, self.nqubits, noise_magnitude))
@@ -655,7 +680,7 @@ class vqregressor:
                 if epoch != 0:
                     self.params = new_params
                     eps = abs((check_noise[epoch] - check_noise[index])) #check_noise[epoch]
-                    log.info(str(eps))
+
                     #eps_var = 0.1  ###############################################
                     if eps > self.noise_threshold: #eps_val = 0.1
                         std = self.mit_params[1]
@@ -665,7 +690,7 @@ class vqregressor:
                         total_eps = (abs(1-check_noise[epoch]**2)/np.sqrt(self.nshots) + abs(1-check_noise[index]**2)/np.sqrt(self.nshots))
                         #if eps > total_eps:
                         counter += 1
-                        log.info('Updating CDR params')
+                        log.info(f'## --------- Updating CDR params because eps={eps} > threshold={self.noise_threshold}!! -------- ')
                         self.mit_params, data = self.get_fit()
                         std = self.mit_params[1]
                         index = epoch

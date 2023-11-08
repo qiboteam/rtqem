@@ -96,7 +96,7 @@ if conf["mitigation"]["readout"] is not None:
 
 mit_kwargs = {
     "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 10000},
-    "mit_obs": {"n_training_samples": 10, "readout": readout, "nshots": 10000},
+    "mit_obs": {"n_training_samples": 20, "readout": readout, "nshots": 10000},
     None: {},
 }
 
