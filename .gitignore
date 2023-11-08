@@ -135,8 +135,6 @@ dmypy.json
 # tmp files
 tmp/
 
-# images
-*png
 
 # default outputs of cma optimization
 outcmaes/
