@@ -18,9 +18,9 @@ def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_
     """
 
     if run_name != '':
-        conf_file = f"{example}/{run_name}/{example}.conf"
+        conf_file = f"targets/{example}/{run_name}/{example}.conf"
     else:
-        conf_file = f"{example}/{example}.conf"
+        conf_file = f"targets/{example}/{example}.conf"
 
     with open(conf_file, "r") as f:
         conf = json.load(f)
@@ -43,10 +43,9 @@ def prepare_data(example:str, normalize:bool=False, show_sample:bool=False, run_
         labels = np.exp(-data) * np.cos(3 * data) * 0.3
     elif function == "gamma":
         labels = scipy.stats.gamma.pdf(data, a=2, loc=-1, scale=0.4)
-    elif function == "gluon":
+    elif function == "uquark":
         scaler = lambda x: np.log(x)
-        parton = conf["parton"]
-        data = np.loadtxt(f"gluon/data/{parton}.dat")
+        data = np.loadtxt(f"uquark/data/u.dat")
         idx = np.round(np.linspace(0,len(data)-1,ndata)).astype(int)
         labels = data.T[1][idx]
         data = data.T[0][idx]
