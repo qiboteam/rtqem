@@ -551,7 +551,7 @@ class vqregressor:
                 )
             )
 
-        cache_dir = f"{self.example}/cache_{self.noise_threshold}"
+        cache_dir = f"targets/{self.example}/cache"
 
         if self.noise_model is not None:
             noise = True
