@@ -14,7 +14,8 @@ if the system is changed too much from the last time the map was learn.
 
 A schematic representation of the algorithm follows:
 
-[rtqem](doc/figures/rtqem.png)
+![rtqem](https://github.com/qiboteam/mitigated-fit/assets/62071516/6eb6b7e1-d8ed-4a5b-93cd-fc28fc1eb6e6)
+
 
 ### Introduction to the usage
 
