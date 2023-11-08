@@ -42,9 +42,24 @@ this parameter must be equal to `ndim`.
 - `noise_update (int)`: every `noise_update` epochs the noise changes according to
 a specific evolution model.
 - `noise_threshold (float)`: if this threshold is exceeded and a mitigation method is selected, the noise map is re-learned.
-- `obs_hardware (bool)`: computing expectation values directly on frequencies (use only if working on hardware).
 - `evolution_model (string)`: can be one between `"random_walk"`, `"diffusion"`, `"heating"`.
 - `diffusion_parameter (float)`: mutation step of the noise into the selected noise evolution model.  
-
+- `qm (float)`: readout noise parameter.
+- `noise_magnitude ([float, float, float])`: local Pauli noise parameters (they must be positive and their sum must be minor or equal to one).
+- `bp_bound`: compute and print the bound imposed by Noise Induced Barren Plateaus according to the selected number of qubits, number of layers and noise magnitude. 
+- `mitigation (dict)`: mitigation arguments:
+  - `step (bool)`: if true, gradients and predictions are mitigated over training;
+  - `final (bool)`: if true, the final predictions are mitigated;
+  - `method (str)`: can be `mit_obs` or `CDR`. We suggest to set `mit_obs`, since it corresponds to the last results presented in the paper. Set `null` if no mitigation is desired.
+  - `readout (str)`: can be `"calibration_matrix"` (link to the paper), `"ibu"` (link to the paper) or `"randomized"` (link to the paper). Set `null` if no readout mitigation is required.
+- `expectation_from_samples (bool)`: if `False`, exact simulation is performed. If `True`, shot-noise simulation is performed with set number of shots.
+- `nshots (int)` number of shots for each circuit evaluation.
+- `optimizer (str)` can be `"Adam"` (gradient-based) or `"cma"` (evolutionary strategy). We suggest to set `"Adam"`, since it corresponds to the last results of the paper. 
+- `epochs (int)`: number of epochs of the optimization.
+- `ndata (int)`: number of training data.
+- `batchsize (int)`: size of the batches if mini-batch gradient descent is performed.
+- `learning_rate (float)`: Adam's learning rate.
+- `restart from epoch (int)`: restart from a specific training epoch using the cached parameters.
+- `nthreads (int)`: number of threads on which the user wants to parallelise the code.
 
 
