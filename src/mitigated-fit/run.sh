@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=sgd
-#SBATCH --output=noise_evolution.log
+#SBATCH --job-name=myjob_name
+#SBATCH --output=myjob.log
 
 python training.py cosnd
