@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=myjob_name
-#SBATCH --output=myjob.log
+#SBATCH --job-name=rtqem
+#SBATCH --output=rtqem.log
 
-python training.py cosnd
+python training.py uquark

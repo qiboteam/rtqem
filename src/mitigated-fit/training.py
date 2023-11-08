@@ -31,7 +31,7 @@ cache_dir = f"targets/{args.example}/cache"
 if not os.path.exists(cache_dir):
     os.makedirs(cache_dir)
 
-with open("{}/{}.conf".format(args.example, args.example), "r") as f:
+with open("targets/{}/{}.conf".format(args.example, args.example), "r") as f:
     conf = json.loads(f.read())
 
 # model definition
@@ -124,7 +124,7 @@ if conf["optimizer"] == "Adam":
     epochs = conf["epochs"]
     learning_rate = conf["learning_rate"]
     # perform the training
-    history, bound_history, noise_radii = VQR.gradient_descent(
+    history, _, _ = VQR.gradient_descent(
         learning_rate=learning_rate,
         epochs=epochs,
         restart_from_epoch=conf["restart_from_epoch"],
@@ -148,6 +148,3 @@ print(f"Execution time required: ", (end - start))
 
 VQR.show_predictions(f"targets/{args.example}/predictions_{conf['optimizer']}", save=True)
 np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.params)
-
-np.save(arr=bound_history, file="bounds")
-np.save(arr=noise_radii, file="noise_radii")

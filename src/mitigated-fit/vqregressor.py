@@ -620,7 +620,7 @@ class vqregressor:
 
         if self.evolution_model is not None:
             # set to false if you don't want many logs
-            noise_verbosity = True
+            noise_verbosity = False
 
             log.info(f"Noise is evolved following the model: {self.evolution_model}.")
 
@@ -645,7 +645,6 @@ class vqregressor:
             noise_radii = []
 
         for epoch in range(epochs):
-            log.info(f"Epoch {epoch}")
             if epoch%self.noise_update == 0 and epoch != 0:
                 #qm = (1+rands[epoch])*qm_init
                 # fix the readout noise for now 
@@ -676,7 +675,6 @@ class vqregressor:
                 #np.random.rand(self.nqubits)*2*np.pi
                 pred = self.check_noise(circuit,observable)
                 check_noise.append(pred)
-                log.info(pred)
                 if epoch != 0:
                     self.params = new_params
                     eps = abs((check_noise[epoch] - check_noise[index])) #check_noise[epoch]
@@ -751,7 +749,6 @@ class vqregressor:
                 arr=self.params,
                 file=f"{cache_dir}/params_history_{train_type}/params_epoch_{epoch + restart + 1}",
             )
-        log.info('CDR params updated '+str(counter)+' times')
 
         name = ""
         if self.noise_model is not None:
