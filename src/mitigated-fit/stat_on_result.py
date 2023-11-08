@@ -1,33 +1,25 @@
 import argparse
 import os
 import json
+from joblib import Parallel, delayed
 
 import numpy as np
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-# import scienceplots
-
-from tqdm import tqdm 
+# qibo's
+import qibo
 from qibo.config import log
 from qibo import gates, set_backend
-from qibo.models.error_mitigation import calibration_matrix, CDR
+from qibo.models.error_mitigation import calibration_matrix
 from qibo.backends import construct_backend
 
+# rtqem's
 from prepare_data import prepare_data
 from bp_utils import bound_pred, generate_noise_model
 from vqregressor import vqregressor
-from joblib import Parallel, delayed
-import qibo
 
 qibo.set_backend('numpy')
-# plt.style.use(['science','no-latex'])
 
-# mpl.rcParams.update({'font.size': 13})
-# mpl.rcParams['xtick.major.size'] = 10
-# mpl.rcParams['xtick.minor.size'] = 5
-# mpl.rcParams['ytick.major.size'] = 10
-# mpl.rcParams['ytick.minor.size'] = 5
 # --------------------- PARSE BEST PARAMS PATH ---------------------------------
 
 parser = argparse.ArgumentParser()
@@ -84,8 +76,6 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_h
         hatch="//",
         color=color,
     )
-    #fit_fig.legend(loc=2, borderaxespad=3)
-    #fit_fig.savefig('fits_benchmark.pdf', bbox_inches='tight')
 
     if label != "Mitigation after training":
         loss_grad_axes[0].plot(loss_history, c=color, lw=2, alpha=0.7, label=label)
@@ -97,27 +87,13 @@ def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_h
             lw=2,
             alpha=0.7,
             label=label)
-        #if type(loss_history) == np.ndarray and type(loss_bound_history) == float:
-        # if label == "No mitigation":
-        #     loss_grad_axes[0].plot([loss_bound_history]*len(loss_history), '--', c='black', lw=2, alpha=0.7, label='BP bound')
-            # elif label == "Exact":
-            #     loss_grad_axes[1].plot(
-            #         grad_bound_history, 
-            #         '--',
-            #         c='black',
-            #         lw=2,
-            #         alpha=0.7,
-            #         label='BP bound')
-    
-    #loss_grad_fig.legend(loc=1, borderaxespad=3)
-    #loss_grad_fig.savefig('gradients_analysis.pdf', bbox_inches='tight')
 
     
     
 def main(args):
     
     conf_file = (
-        args.conf if args.conf is not None else f"{args.example}/{args.run_name}/{args.example}.conf"
+        args.conf if args.conf is not None else f"targets/{args.example}/{args.run_name}/{args.example}.conf"
     )
     with open(conf_file, "r") as f:
         conf = json.load(f)
@@ -212,34 +188,34 @@ def main(args):
     loss_grad_axes[1].set_ylabel('Grad')
     #loss_grad_fig.legend(loc=1, borderaxespad=3)
     
-    files = os.listdir(f"{args.example}/{args.run_name}/cache/")
+    files = os.listdir(f"targets/{args.example}/{args.run_name}/cache/")
     settings, mitigation_settings, colors, labels = [], [], [], []
     for f in files:
-        # if f"best_params_{conf['optimizer']}_noiseless" in f:
-        #     settings.append("noiseless")
-        #     mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
-        #     colors.append('green')
-        #     labels.append('Noiseless')
-        # if f"best_params_{conf['optimizer']}_unmitigated" in f:
-        #     settings.append("unmitigated_step_no_final_no")
-        #     mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
-        #     colors.append('blue')
-        #     labels.append('No mitigation')
-        # if f"best_params_{conf['optimizer']}_unmitigated" in f:
-        #     settings.append("unmitigated_step_no_final_no")
-        #     mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":None})
-        #     colors.append('orange')
-        #     labels.append('Mitigation after training')
+        if f"best_params_{conf['optimizer']}_noiseless" in f:
+            settings.append("noiseless")
+            mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
+            colors.append('green')
+            labels.append('Noiseless')
+        if f"best_params_{conf['optimizer']}_unmitigated" in f:
+            settings.append("unmitigated_step_no_final_no")
+            mitigation_settings.append({"step":False,"final":False,"method":None,"readout":None})
+            colors.append('blue')
+            labels.append('No mitigation')
+        if f"best_params_{conf['optimizer']}_unmitigated" in f:
+            settings.append("unmitigated_step_no_final_no")
+            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":None})
+            colors.append('orange')
+            labels.append('Mitigation after training')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
             mitigation_settings.append({"step":True,"final":True,"method":"mit_obs","readout":None})
             colors.append('red')
             labels.append('Real time mitigation')
-        # if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
-        #     settings.append("realtime_mitigation_step_yes_final_yes")
-        #     mitigation_settings.append({"step":True,"final":False,"method":"mit_obs","readout":None})
-        #     colors.append('red')
-        #     labels.append('Mitigation training')
+        if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
+            settings.append("realtime_mitigation_step_yes_final_yes")
+            mitigation_settings.append({"step":True,"final":False,"method":"mit_obs","readout":None})
+            colors.append('red')
+            labels.append('Mitigation training')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
             mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
@@ -249,14 +225,14 @@ def main(args):
     for setting, mitigation, color, label in zip(settings, mitigation_settings, colors, labels):
 
         print(f"> Drawing '{setting}' plot in {color}.")
-        print(f"> Loading best parameters from:\n  -> '{args.example}/cache/best_params_{conf['optimizer']}_{setting}.npy'.")
+        print(f"> Loading best parameters from:\n  -> 'targets/{args.example}/cache/best_params_{conf['optimizer']}_{setting}.npy'.")
 
 
         if setting == 'noiseless':
             noise_setting = None
         else:
             noise_setting = noise
-        # initialize vqr with data and best parameters
+
 
         VQR = vqregressor(
             layers=conf["nlayers"],
@@ -275,80 +251,20 @@ def main(args):
             scaler=scaler,
         )
         
-        #Noise evolution
-        #VQR.noise_model = None
-        # VQR.mit_params = VQR.get_fit()[0]
-
-        # def get_loss(j):
-        #     best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_realtime_mitigation_step_yes_final_yes/params_epoch_{j+1}.npy")
-        #     VQR.set_parameters(best_params)
-        #     return VQR.loss()
-
-
-        # loss_history = Parallel(n_jobs=min(conf["epochs"],25))(delayed(get_loss)(j) for j in range(conf["epochs"]))
-        # np.save(arr=loss_history, file=f"{args.example}/{args.run_name}/loss_history_real_noise")
-
-        # index_min = np.argmin(loss_history)
-        # log.info('Minimum loss'+str(index_min + 1))
-
-        # best_params = np.load(f"{args.example}/{args.run_name}/cache/params_history_{setting}/params_epoch_{index_min+1}.npy")
-        # VQR.noise_model = noise_setting
 
 
         #Noise fixed
-        loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
-        best_params = np.load(f"{args.example}/{args.run_name}/cache/best_params_{conf['optimizer']}_{setting}.npy")       
+        loss_history = np.load(f"targets/{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
+        best_params = np.load(f"targets/{args.example}/{args.run_name}/cache/best_params_{conf['optimizer']}_{setting}.npy")       
 
 
         VQR.set_parameters(best_params)
 
         predictions = []
 
-        # if label == "Mitigation after training" or label=='Real time mitigation':
-            
-        #     circuit, observable = VQR.epx_value()
-        #     mit_params = []
-
-        #     for _ in range(mit_kwargs["CDR"]["N_mean"]):
-        #         circuit.set_parameters(np.random.randn(len(circuit.get_parameters())))
-        #         _, _, params, _ = CDR(
-        #             circuit = circuit,
-        #             observable = observable,
-        #             n_training_samples = mit_kwargs["CDR"]["n_training_samples"],
-        #             nshots = 10000,
-        #             noise_model = noise_setting,
-        #             full_output = True
-        #         )
-        #         mit_params.append(params)
-            
-        #     mit_params = np.mean(mit_params, axis=0)
-        #     print(mit_params)
-
-        # for _ in tqdm(range(nruns)):
-        #     VQR.mit_params = None
-        #     if label == "Mitigation after training": 
-        #         predictions.append(np.asarray(VQR.predict_sample())*mit_params[0] + mit_params[1])
-        #     elif label == 'Real time mitigation': 
-        #         #VQR.mit_params = VQR.get_fit(data)[0]
-        #         predictions.append(VQR.predict_sample())
-        #     else:
-        #         predictions.append(VQR.predict_sample())
-
-        # predictions = np.asarray(predictions)
         VQR.mit_params = VQR.get_fit()[0]
+
         def get_pred(j):
-            #set_backend('numpy')
-
-            # cal = calibration_matrix(
-            #     1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=conf["nshots"]
-            # )
-            # VQR.mit_params = None
-            # VQR.mit_kwargs['readout']['calibration_matrix'] = cal
-            # log.info(str(cal))
-
-            # if label == "Mitigation after training" or label=='Real time mitigation': 
-            #     pred = np.asarray(VQR.predict_sample())*mit_params[0] + mit_params[1]
-            # else: 
             pred = VQR.predict_sample()
             return pred
 
@@ -366,21 +282,15 @@ def main(args):
         stds = predictions.std(0)
         
         
-        # TO DO: ADD FUNCTION WHICH CLASSIFIES THE TRAINING
-
-        #loss_history = np.load(f"{args.example}/{args.run_name}/cache/loss_history_{setting}.npy")
-        #print('Minimum loss', np.argmin(loss_history) + 1)
-        grad_history = np.load(f"{args.example}/{args.run_name}/cache/grad_history_{setting}.npy")
+        grad_history = np.load(f"targets/{args.example}/{args.run_name}/cache/grad_history_{setting}.npy")
 
         if label == 'Mitigation after training':
             setting = "unmitigated_step_no_final_yes"
         if label == 'Mitigation training':
             setting = "realtime_mitigation_step_yes_final_no"
-        np.save(arr=means, file=f"{args.example}/{args.run_name}/means_{platform}_{setting}")
-        np.save(arr=stds, file=f"{args.example}/{args.run_name}/stds_{platform}_{setting}")
+        np.save(arr=means, file=f"targets/{args.example}/{args.run_name}/means_{platform}_{setting}")
+        np.save(arr=stds, file=f"targets/{args.example}/{args.run_name}/stds_{platform}_{setting}")
 
-
-        #loss_bound_history = 0
         grad_bound_history = 0
 
         plot(
@@ -400,12 +310,10 @@ def main(args):
     fit_axis.minorticks_off()
     loss_grad_axes[0].minorticks_off()
     loss_grad_axes[1].minorticks_off()
-    #fit_axis.legend(loc=3,fontsize="7.5") #uncomment
     fit_axis.set_xscale(conf["xscale"])
-    fit_fig.savefig(f"{args.example}/{args.run_name}/fits_benchmark.pdf", bbox_inches='tight')
-    #loss_grad_axes[0].legend(loc=1,fontsize="7.5") #uncomment
+    fit_fig.savefig(f"targets/{args.example}/{args.run_name}/fits_benchmark.pdf", bbox_inches='tight')
     loss_grad_fig.tight_layout()
-    loss_grad_fig.savefig(f"{args.example}/{args.run_name}/gradients_analysis.pdf", bbox_inches='tight')
+    loss_grad_fig.savefig(f"targets/{args.example}/{args.run_name}/gradients_analysis.pdf", bbox_inches='tight')
     
 
 
@@ -415,7 +323,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.example[-1] == "/":
         args.example = args.example[:-1]
-    cache_dir = f"{args.example}/cache/"
+    cache_dir = f"targets/{args.example}/cache/"
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
     main(args)
