@@ -16,7 +16,7 @@ from qibo.models.error_mitigation import calibration_matrix
 from bp_utils import bound_pred, generate_noise_model
 from prepare_data import prepare_data
 from savedata_utils import get_training_type
-from vqregressor import vqregressor
+from vqregressor import VQRegressor
 
 parser = argparse.ArgumentParser(description="Training the vqregressor")
 parser.add_argument("example")
@@ -99,7 +99,7 @@ mit_kwargs = {
     None: {},
 }
 
-VQR = vqregressor(
+VQR = VQRegressor(
     nqubits=nqubits,
     qubit_map = conf["qubit_map"],
     layers=layers,

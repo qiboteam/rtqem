@@ -16,7 +16,7 @@ from qibo.backends import construct_backend
 # rtqem's
 from prepare_data import prepare_data
 from bp_utils import bound_pred, generate_noise_model
-from vqregressor import vqregressor
+from vqregressor import VQRegressor
 
 qibo.set_backend('numpy')
 
@@ -234,7 +234,7 @@ def main(args):
             noise_setting = noise
 
 
-        VQR = vqregressor(
+        VQR = VQRegressor(
             layers=conf["nlayers"],
             qubit_map = conf["qubit_map"],
             data=data,

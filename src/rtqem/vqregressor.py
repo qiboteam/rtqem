@@ -19,10 +19,8 @@ from bp_utils import bound_pred, bound_grad, generate_noise_model
 
 from joblib import Parallel, delayed
 
-# numpy backend is enough for a 1-qubit model
-# qibo.set_backend('qibolab', platform='tii1q_b1')
-qibo.set_backend('numpy')
-class vqregressor:
+
+class VQRegressor:
 
     def __init__(
         self,
