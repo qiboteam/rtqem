@@ -28,7 +28,33 @@ to train a variational quantum regressor initialized according to the second scr
   all the desired hyper-parameters. As an example, if the `uquark` target is selected,
   the `src/rtqem/uquark.conf` file can be used to define the settings of the training. 
 
-### Hyper-parameters into configuration files
+### Run an example of RTQEM optimization!
+
+As an example, we provide the instructions to run the `uquark` fit with and without RTQEM.
+
+The `uquark` configuration file is already set up to run in `RTQEM` mode in a strong-noise scenario. In order to run the optimization:
+
+```sh
+cd src/rtqem/
+python training.py uquark
+```
+
+After the execution, some data will be generated:
+- `./src/rtqem/liveshow.png` is a live-plotting of the fit;
+- `./src/rtqem/uquark/` will contain `data.npy` and `labels.npy`, corresponding to the training input and output data.
+- `src/rtqem/cache` will contain the best parameters collected during the optimization, the loss function history, the gradients history and a folder in which the parameters are saved epoch by epoch.
+All the described output will be saved with a label which describes the optimization configuration. More details about this can be found in `src/rtqem/savedata_utils.py`.
+
+If one now wants to repeat the optimization without RTQEM, 
+just open the file `src/uquark/uquark.conf` and replace the `mitigation` config. line 9 with:
+
+```sh
+  "mitigation": {"step":false,"final":false,"method":null, "readout":null},
+```
+
+The whole optimization will be repeated with noise and without RTQEM.
+
+### How to customize the training experience?
 
 Many hyper-parameters can be used to customize the training. A detailed list follows:
 
@@ -62,30 +88,4 @@ a specific evolution model.
 - `learning_rate (float)`: Adam's learning rate.
 - `restart from epoch (int)`: restart from a specific training epoch using the cached parameters.
 - `nthreads (int)`: number of threads on which the user wants to parallelise the code.
-
-### Optimization example
-
-As an example, we provide the instructions to run the `uquark` fit with and without RTQEM.
-
-The `uquark` configuration file is already set up to run in `RTQEM` mode in a strong-noise scenario. In order to run the optimization:
-
-```sh
-cd src/rtqem/
-python training.py uquark
-```
-
-After the execution, some data will be generated:
-- `./src/rtqem/liveshow.png` is a live-plotting of the fit;
-- `./src/rtqem/uquark/` will contain `data.npy` and `labels.npy`, corresponding to the training input and output data.
-- `src/rtqem/cache` will contain the best parameters collected during the optimization, the loss function history, the gradients history and a folder in which the parameters are saved epoch by epoch.
-All the described output will be saved with a label which describes the optimization configuration. More details about this can be found in `src/rtqem/savedata_utils.py`.
-
-If one now wants to repeat the optimization without RTQEM, 
-just open the file `src/uquark/uquark.conf` and replace the `mitigation` config. line 9 with:
-
-```sh
-  "mitigation": {"step":false,"final":false,"method":null, "readout":null},
-```
-
-The whole optimization will be repeated with noise and without RTQEM.
 
