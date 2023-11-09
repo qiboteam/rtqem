@@ -135,14 +135,12 @@ dmypy.json
 # tmp files
 tmp/
 
-# images
-*png
 
 # default outputs of cma optimization
 outcmaes/
 
 # training params history 
-*params_epoch_*
+#*params_epoch_*
 
 # configuration files backups
 *.conf~
