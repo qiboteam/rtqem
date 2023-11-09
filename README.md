@@ -4,13 +4,13 @@ Code related to `paper-link`.
 The `rtqem` algorithm implements a Real-Time Quantum Error Mitigation procedure 
 to perform multi-dimensional fit in a quantum noisy scenario.
 
-The optimization is gradient-based and makes use of Adam optimizer.
+The optimization is gradient-based and makes use of the Adam optimizer.
 
 In a few words, in the RTQEM we use a learning-based quantum error mitigation 
 method (Importance Clifford Sampling) to mitigate both gradients and predictions 
 during the gradient descent execution. In an evolving-noise scenario, it is possible
-to set a threshold which govern the possibility of re-learning the noise map 
-if the system is changed too much from the last time the map was learn. 
+to set a threshold which triggers the re-learning of the noise map 
+when the system has significantly changed since the last learnt map. 
 
 A schematic representation of the algorithm follows:
 
@@ -45,26 +45,26 @@ After the execution, some data will be generated:
 - `src/rtqem/cache` will contain the best parameters collected during the optimization, the loss function history, the gradients history, a final plot of the predictions on the training sample and a folder in which the parameters are saved epoch by epoch.
 All the described output will be saved with a label which describes the optimization configuration. More details about this can be found in `src/rtqem/savedata_utils.py`.
 
-If one now wants to repeat the optimization without RTQEM, 
-just open the file `src/uquark/uquark.conf` and replace the `mitigation` config. line 9 with:
+To run the training without RTQEM, 
+edit the file `src/uquark/uquark.conf` by replacing the `mitigation` config. line 9 with:
 
 ```sh
   "mitigation": {"step":false,"final":false,"method":null, "readout":null},
 ```
 
-The whole optimization will be repeated with noise and without RTQEM.
+This will result in a noisy training simulation without RTQEM.
 
 ### How to customize the training experience?
 
 Many hyper-parameters can be used to customize the training. A detailed list follows:
 
-- `ndim (int)`: the dimensionality of the problem. The `uquark` target, for example, in 
+- `ndim (int)`: the dimensionality of the problem. The `uquark` target, for example, is 
 mono-dimensional.
 - `nqubits (int)`: number of qubits used to build the parametric circuit. In our ansatz, 
 this parameter must be equal to `ndim`.
 - `nlayers (int)`: number of layers of the quantum machine learning model.
 - `function (str)`: target name.
-- `normalize_data (bool)`: target function output is normalized between [0,1].
+- `normalize_data (bool)`: if `True` the target function is normalized between [0,1].
 - `noise (bool)`: if `True`, local Pauli noise is injected into the system.
 - `noise_update (int)`: every `noise_update` epochs the noise changes according to
 a specific evolution model.
@@ -72,11 +72,11 @@ a specific evolution model.
 - `evolution_model (string)`: can be one between `"random_walk"`, `"diffusion"`, `"heating"`.
 - `diffusion_parameter (float)`: mutation step of the noise into the selected noise evolution model.  
 - `qm (float)`: readout noise parameter.
-- `noise_magnitude ([float, float, float])`: local Pauli noise parameters (they must be positive and their sum must be minor or equal to one).
+- `noise_magnitude ([float, float, float])`: local Pauli noise parameters (they must be positive and their sum must be lower than or equal to one).
 - `bp_bound`: compute and print the bound imposed by Noise Induced Barren Plateaus according to the selected number of qubits, number of layers and noise magnitude. 
 - `mitigation (dict)`: mitigation arguments:
   - `step (bool)`: if true, gradients and predictions are mitigated over training;
-  - `final (bool)`: if true, the final predictions are mitigated;
+  - `final (bool)`: if true, the final predictions only are mitigated;
   - `method (str)`: can be `mit_obs` or `CDR`. We suggest to set `mit_obs`, since it corresponds to the last results presented in the paper. Set `null` if no mitigation is desired.
   - `readout (str)`: can be `"calibration_matrix"` (link to the paper), `"ibu"` (link to the paper) or `"randomized"` (link to the paper). Set `null` if no readout mitigation is required.
 - `expectation_from_samples (bool)`: if `False`, exact simulation is performed. If `True`, shot-noise simulation is performed with set number of shots.
