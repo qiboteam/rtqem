@@ -485,24 +485,21 @@ class VQRegressor:
             zip(np.array_split(data, nbatches), np.array_split(labels, nbatches))
         )
 
-    def check_noise(self, circuit, observable):
-        # self.inject_data(x)
-        # circuit, observable = self.epx_value()
-        # circuit = escircuit(circuit, observable, backend = self.backend)[0]
+    def check_noise(self, circuit, observable, mit_params=None):
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
-            #self.backend.set_seed(None)
             circuit = self.transpile_circ(circuit)
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
-            obs =  observable.expectation_from_samples(result.frequencies()) #Add - for iqm simulation
+            obs =  observable.expectation_from_samples(result.frequencies())
         else:
-            #self.backend.set_seed(None)
             obs = observable.expectation(
                 self.backend.execute_circuit(circuit, nshots=self.nshots).state()
             )
         if self.obs_hardware:
             obs = np.sqrt(abs(obs))
+        if mit_params is not None:
+            obs = (1 - mit_params[0]) * obs / ((1 - mit_params[0]) ** 2 + mit_params[1]**2)
         return obs
     
 
@@ -594,11 +591,12 @@ class VQRegressor:
         
 
         counter = 0
-        index = 0
         xs = [np.pi/3]*self.nqubits
         self.inject_data(xs)
         circuit, observable = self.epx_value()
         circuit = escircuit(circuit, observable, backend = self.backend)[0]
+        exact = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+        self.mit_params, _ = self.get_fit()
         
         def random_step(point, var=0.005):
             """Random gaussian step on a 3D lattice."""
@@ -666,31 +664,38 @@ class VQRegressor:
 
             if self.mitigation['step']:
                 self.params = init_params
-                pred = self.check_noise(circuit,observable)
+                pred = self.check_noise(circuit,observable,self.mit_params)
                 check_noise.append(pred)
                 if epoch != 0:
                     self.params = new_params
-                    eps = abs((check_noise[epoch] - check_noise[index])) 
-
-                    #eps_var = 0.1  ###############################################
+                    eps = abs(pred - exact)
+                    log.info(eps)
                     if eps > self.noise_threshold: 
+                        noisy = self.check_noise(circuit,observable)
 
-                        std = self.mit_params[1]
-                        dep = self.mit_params[0]
+                        mit_params_list = []
+                        for _ in range(10):
+                            mit_params, _ = self.get_fit()
+                            mit_params_list.append(mit_params)
+                        mit_params_list = np.array(mit_params_list)
+                        mean_mean = np.mean(mit_params_list[:,0])
+                        mean_std = np.std(mit_params_list[:,0])
+                        std_mean = np.mean(mit_params_list[:,1])
+                        std_std = np.std(mit_params_list[:,1])
 
-                        # TODO: re-activate the possibility to run noise evolution with shot noise
-                        #total_eps = (abs(1-check_noise[epoch]**2)/np.sqrt(self.nshots) + abs(1-check_noise[index]**2)/np.sqrt(self.nshots))
-                        #if eps > total_eps:
-                        counter += 1
-                        log.info(f'## --------- Updating CDR params because eps={eps} > threshold={self.noise_threshold}!! -------- ')
-                        self.mit_params, data = self.get_fit()
-                        std = self.mit_params[1]
-                        index = epoch
-                        #check = 2*std#4*(std[1]+std[0]*abs(self.mit_params[1])/abs(self.mit_params[0]))/abs(1-self.mit_params[1])
-                        log.info(str(eps)+' '+str(std))
-                        cdr_history.append(data)
-                        #else:
-                        #log.info('std='+str(total_eps)+'>'+'thr='+str(self.noise_threshold))
+                        partial_mean = abs(2*(1-mean_mean)**2/((1-mean_mean)**2+std_mean**2)**2 - 1/((1-mean_mean)**2+std_mean**2))
+                        partial_std = abs(2*(1-mean_mean)*std_mean/((1-mean_mean)**2+std_mean**2)**2)
+                        error = partial_mean*mean_std + partial_std*std_std
+                        total_eps = abs(error*noisy)
+                    
+                        if eps > total_eps:
+                            counter += 1
+                            log.info(f'## --------- Updating CDR params because eps={eps} > threshold={self.noise_threshold}!! -------- ')
+                            self.mit_params[0] = mean_mean
+                            self.mit_params[1] = std_mean
+                            cdr_history.append(data)
+                        else:
+                            log.info('std='+str(total_eps)+'>'+'thr='+str(self.noise_threshold))
 
             iteration = 0
 
