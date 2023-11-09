@@ -659,7 +659,10 @@ class vqregressor:
 
                 # the noise magnitude is updated according to the chosen strategy
                 #noise_magnitude = abs((1+rands[epoch])*np.array(old_noise_magnitude))
-                noise_magnitude = (1+abs(rands[epoch]))*np.array(old_noise_magnitude)
+                if self.evolution_model == "heating" or self.evolution_model == "diffusion":
+                    noise_magnitude = abs(1+rands[epoch])*np.array(old_noise_magnitude)
+                elif self.evolution_model == "random_walk":
+                    noise_magnitude = noise_magnitudes[epoch]
 
                 if noise_verbosity:
                     log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
