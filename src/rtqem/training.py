@@ -56,8 +56,6 @@ if conf["noise"]:
     if conf["bp_bound"]:
         params = noise.errors[gates.I][0][1].options
         probs = [params[k][1] for k in range(3)]
-        #lamb = noise.errors[gates.I][0][1].options
-        #probs = (4**nqubits-1)*[lamb/4**nqubits]
         bit_flip = noise.errors[gates.M][0][1].options[0,-1]
         bounds = bound_pred(layers, nqubits, probs, bit_flip)
         print('bound', bounds)
@@ -139,12 +137,9 @@ end = time.time()
 
 predictions = VQR.predict_sample()
 
-#plot([labels, predictions], legend_labels=["target", "predictions"])
 
 print(f"Execution time required: ", (end - start))
 
-# best_params = np.load('gluon/best_params_Adam.npy',allow_pickle=True)
-# VQR.params = best_params
 
-VQR.show_predictions(f"targets/{args.example}/predictions_{conf['optimizer']}", save=True)
+VQR.show_predictions(f"targets/{args.example}/predictions_{conf['optimizer']}", save=True, xscale=conf["xscale"])
 np.save(f"{cache_dir}/best_params_{conf['optimizer']}_{training_type}", VQR.params)

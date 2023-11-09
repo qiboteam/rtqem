@@ -1,10 +1,11 @@
 import os, random
+from joblib import Parallel, delayed
 
 # some useful python package
 import numpy as np
 import matplotlib.pyplot as plt
 
-# import qibo's packages
+# qibo's
 import qibo
 from qibo import gates
 from qibo.config import log
@@ -13,11 +14,11 @@ from qibo.models import Circuit
 from qibo.models import error_mitigation
 from qibo.models.error_mitigation import escircuit
 from qibo.symbols import Z
-from savedata_utils import get_training_type
 
+# rtqem's
+from savedata_utils import get_training_type
 from bp_utils import bound_pred, bound_grad, generate_noise_model
 
-from joblib import Parallel, delayed
 
 
 class VQRegressor:
@@ -171,7 +172,7 @@ class VQRegressor:
                 self.scale_factors[index + 2] = x[q]
                 # we have four parameters per layer
                 index += 4
-#  self.scaler(x[q])/10
+                # TODO: reduce the fluctuations adding: self.scaler(x[q])/10
         # update circuit's parameters
         self.circuit.set_parameters(params)
 
@@ -208,7 +209,7 @@ class VQRegressor:
                     new_c.add(gate.__class__(*tuple(qubits), **gate.init_kwargs))
                 else:
                     matrix = gate.matrix()
-                    new_c.add(gates.U3(*tuple(qubits), *u3_decomposition(matrix)))#gates.Unitary(matrix, *tuple(qubits), **gate.init_kwargs))
+                    new_c.add(gates.U3(*tuple(qubits), *u3_decomposition(matrix)))
             return new_c
         else:
             return circuit
@@ -221,13 +222,12 @@ class VQRegressor:
         if self.obs_hardware:
             circuit.add(gates.Z(*range(self.nqubits)))
             circuit += self.circuit.invert()
-            #circuit.add(gates.M(*range(self.nqubits)))
+
             circuit.add(gates.M(k) for k in range(self.nqubits))
             observable = np.zeros((2**self.nqubits, 2**self.nqubits))
             observable[0, 0] = 1
             observable = Hamiltonian(self.nqubits, observable, backend=self.backend)
         else:
-            #circuit.add(gates.M(*range(self.nqubits)))
             circuit.add(gates.M(k) for k in range(self.nqubits))
             observable = SymbolicHamiltonian(
                 np.prod([Z(i) for i in range(self.nqubits)]), backend=self.backend
@@ -243,12 +243,10 @@ class VQRegressor:
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
-            #self.backend.set_seed(None)
             circuit = self.transpile_circ(circuit)
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
-            obs =  observable.expectation_from_samples(result.frequencies()) #Add - for iqm simulation
+            obs =  observable.expectation_from_samples(result.frequencies()) 
         else:
-            #self.backend.set_seed(None)
             obs = observable.expectation(
                 self.backend.execute_circuit(circuit, nshots=self.nshots).state()
             )
@@ -269,9 +267,8 @@ class VQRegressor:
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
                 result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
-            obs =  observable.expectation_from_samples(result.frequencies()) #Add - for iqm
+            obs =  observable.expectation_from_samples(result.frequencies()) 
         else:
-            #self.backend.set_seed(None)
             obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
         if self.obs_hardware:
             obs = np.sqrt(abs(obs))
@@ -296,8 +293,9 @@ class VQRegressor:
     def get_fit(self, x=None):
         rand_params = np.random.uniform(-2*np.pi,2*np.pi,int(self.nparams/2))
         mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples','readout']}
+
         if x is None:
-            data = self.fits_iter(mit_kwargs, rand_params)#[j*int(self.nparams/2):(j+1)*int(self.nparams/2)])
+            data = self.fits_iter(mit_kwargs, rand_params)
             from uniplot import plot
             plot(data[5]["noisy"]['-1'] + data[5]["noisy"]['1'],data[5]["noise-free"]['-1'] + data[5]["noise-free"]['1'])
             mean_param = data[2]
@@ -316,10 +314,8 @@ class VQRegressor:
                 full_output=True,
                 **mit_kwargs
             )
-            mean_params = data[2]
+            # TODO: is this needed? : mean_params = data[2]
             std = data[3]
-            # cdr_data.append(data)
-            # cdr_data = np.array(data,dtype=object)
         return [mean_param, std], data
 
     def one_mitigated_prediction(self, x):
@@ -376,8 +372,6 @@ class VQRegressor:
         to the variational parameters of the circuit are performed via parameter-shift
         rule (PSR)."""
 
-        #log.info(f"Evaluating gradient wrt to variable {x}")
-
         if self.backend.name == 'numpy':
             dcirc = np.array(Parallel(n_jobs=min(self.nthreads,self.nparams))(delayed(self.parameter_shift)(par,x) for par in range(self.nparams)))
         else:
@@ -396,9 +390,7 @@ class VQRegressor:
         if self.noise_model is not None:
             params = self.noise_model.errors[gates.I][0][1].options
             probs = [params[k][1] for k in range(3)]
-            #lamb= self.noise_model.errors[gates.I][0][1].options
-            #probs = (4**self.nqubits-1)*[lamb/4**self.nqubits]
-            bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]#**(1/self.nqubits)
+            bit_flip = self.noise_model.errors[gates.M][0][1].options[0,-1]
         else:
             probs = np.zeros(3)
             bit_flip = 0
@@ -587,15 +579,19 @@ class VQRegressor:
             m = np.zeros(self.nparams)
             v = np.zeros(self.nparams)
 
-        # cycle over the epochs
-        np.random.seed(1234)
+        if self.evolution_model is not None:
+            # to fix the evolutions
+            np.random.seed(1234)
+            random.seed(424242)
+
+        # ---------------------------- Noise model utils -----------------------
         # normal sampling
         check_noise=[]
         init_params = self.params.copy()
         if self.noise_model != None:
             qm_init = self.noise_model.errors[gates.M][0][1].options[0,-1]
-            noise_magnitude_init = [self.noise_model.errors[gates.I][0][1].options[j][1] for j in range(3)]#self.noise_model.errors[gates.I][0][1].options[0][1]
-            #noise_magnitude_init = self.noise_model.errors[gates.I][0][1].options/4**self.nqubits
+            noise_magnitude_init = [self.noise_model.errors[gates.I][0][1].options[j][1] for j in range(3)]
+        
 
         counter = 0
         index = 0
@@ -616,6 +612,8 @@ class VQRegressor:
                 new_point.append(point[dim] + sgn * random.gauss(0, var))
             return new_point
 
+        # ------------------------ Noise evolution -----------------------------
+
         if self.evolution_model is not None:
             # set to false if you don't want many logs
             noise_verbosity = False
@@ -627,7 +625,6 @@ class VQRegressor:
             if self.evolution_model == "diffusion":
                 rands = np.random.normal(0, self.evolution_parameter, (epochs, 3))
             if self.evolution_model == "random_walk":
-                random.seed(424242)
                 noise_magnitudes = []
                 nm = noise_magnitude_init
                 for _ in range(epochs):
@@ -642,10 +639,10 @@ class VQRegressor:
             loss_bound_evolution = []
             noise_radii = []
 
+        # cycle over the epochs
         for epoch in range(epochs):
             if epoch%self.noise_update == 0 and epoch != 0:
-                #qm = (1+rands[epoch])*qm_init
-                # fix the readout noise for now 
+
                 qm = qm_init
 
                 # the noise magnitude is updated according to the chosen strategy
@@ -669,21 +666,20 @@ class VQRegressor:
 
             if self.mitigation['step']:
                 self.params = init_params
-                #np.random.seed(123)
-                #np.random.rand(self.nqubits)*2*np.pi
                 pred = self.check_noise(circuit,observable)
                 check_noise.append(pred)
                 if epoch != 0:
                     self.params = new_params
-                    eps = abs((check_noise[epoch] - check_noise[index])) #check_noise[epoch]
+                    eps = abs((check_noise[epoch] - check_noise[index])) 
 
                     #eps_var = 0.1  ###############################################
-                    if eps > self.noise_threshold: #eps_val = 0.1
+                    if eps > self.noise_threshold: 
+
                         std = self.mit_params[1]
                         dep = self.mit_params[0]
-                        #err_noise = 1/(a*np.sqrt(self.nshots)) + std*check_noise[epoch]/a**2
-                        #total_eps = (2/(a*np.sqrt(self.nshots)) + std/a**2)/check_noise[epoch] + (check_noise[epoch] - check_noise[epoch-1])*err_noise
-                        total_eps = (abs(1-check_noise[epoch]**2)/np.sqrt(self.nshots) + abs(1-check_noise[index]**2)/np.sqrt(self.nshots))
+
+                        # TODO: re-activate the possibility to run noise evolution with shot noise
+                        #total_eps = (abs(1-check_noise[epoch]**2)/np.sqrt(self.nshots) + abs(1-check_noise[index]**2)/np.sqrt(self.nshots))
                         #if eps > total_eps:
                         counter += 1
                         log.info(f'## --------- Updating CDR params because eps={eps} > threshold={self.noise_threshold}!! -------- ')
@@ -698,15 +694,13 @@ class VQRegressor:
 
             iteration = 0
 
-            # stop the training if the target loss is reached
-            if False:
-                if epoch != 0 and loss_history[-1] < J_treshold:
-                    print(
-                        "Desired sensibility is reached, here we stop: ",
-                        iteration,
-                        " iteration",
-                    )
-                    break
+            if epoch != 0 and loss_history[-1] < J_treshold:
+                print(
+                    "Desired sensibility is reached, here we stop: ",
+                    iteration,
+                    " iteration",
+                )
+                break
 
             # run over the batches
             for data, labels in self.data_loader(batchsize):
@@ -759,18 +753,14 @@ class VQRegressor:
                 name += "-final"
             if self.mitigation['readout']:
                 name += f"-readout"
-        # if self.noise_model is not None:
-        #     noise = True
-        # else:
-        #     noise = False
-        # train_type = get_training_type(self.mitigation, noise)
+
+
         np.save(arr=np.asarray(loss_history), file=f"{cache_dir}/loss_history_{train_type}")
         np.save(arr=np.asarray(grad_history), file=f"{cache_dir}/grad_history_{train_type}")
         if self.bp_bound:
             np.save(arr=np.asarray(grad_bound_history), file=f"{cache_dir}/grad_bound_history_{train_type}")
             np.save(arr=np.asarray(loss_bound_history), file=f"{cache_dir}/loss_bound_history_{train_type}")
-        # if self.mitigation['step'] is True:
-        #     np.save(arr=np.asanyarray(cdr_data, dtype=object), file=f"{cache_dir}/cdr_history_{train_type}")
+
 
         index_min = np.argmin(loss_history)
 
