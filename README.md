@@ -42,7 +42,7 @@ python training.py uquark
 After the execution, some data will be generated:
 - `./src/rtqem/liveshow.png` is a live-plotting of the fit;
 - `./src/rtqem/uquark/` will contain `data.npy` and `labels.npy`, corresponding to the training input and output data.
-- `src/rtqem/cache` will contain the best parameters collected during the optimization, the loss function history, the gradients history and a folder in which the parameters are saved epoch by epoch.
+- `src/rtqem/cache` will contain the best parameters collected during the optimization, the loss function history, the gradients history, a final plot of the predictions on the training sample and a folder in which the parameters are saved epoch by epoch.
 All the described output will be saved with a label which describes the optimization configuration. More details about this can be found in `src/rtqem/savedata_utils.py`.
 
 If one now wants to repeat the optimization without RTQEM, 
