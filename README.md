@@ -16,6 +16,10 @@ A schematic representation of the algorithm follows:
 
 ![rtqem](https://github.com/qiboteam/rtqem/assets/62071516/1bdbf925-b5ea-4bf6-8790-4d27d85d72f0)
 
+
+## !!! Temporary !!!
+The code works now in a branch of `Qibo`, which we going to merge soon into the master branch. 
+
 ### Introduction to the usage
 
 The code is organized as follows:
