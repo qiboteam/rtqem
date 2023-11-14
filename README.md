@@ -1,6 +1,8 @@
 # RTQEM
 
-Code related to [https://arxiv.org/abs/2311.05680](arXiv:2311.05680). 
+Code related to the paper: [arXiv:2311.05680](https://arxiv.org/abs/2311.05680). 
+
+
 The `rtqem` algorithm implements a Real-Time Quantum Error Mitigation procedure 
 to perform multi-dimensional fit in a quantum noisy scenario.
 
