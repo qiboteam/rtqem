@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import time
+from pathlib import Path
 
 # extra dependencies
 import numpy as np
@@ -64,8 +65,11 @@ else:
     print("Noisless model is executed.")
     noise = None
 
-if conf["qibolab"]:    
-    backend = construct_backend("qibolab", conf["platform"], runcard=conf["runcard"])
+if conf["qibolab"]:
+    runcard = conf["runcard"]
+    if runcard:
+        runcard = Path(runcard)
+    backend = construct_backend("qibolab", conf["platform"], runcard=runcard)
     backend.transpiler = None
 else:
     set_backend('numpy')
