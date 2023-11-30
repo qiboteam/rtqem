@@ -65,7 +65,7 @@ else:
     noise = None
 
 if conf["qibolab"]:    
-    backend = construct_backend("qibolab", conf["platform"])
+    backend = construct_backend("qibolab", conf["platform"], runcard=conf["runcard"])
     backend.transpiler = None
 else:
     set_backend('numpy')
