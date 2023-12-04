@@ -294,11 +294,8 @@ class VQRegressor:
 
         if x is None:
             data = self.fits_iter(mit_kwargs, rand_params)
-            from uniplot import plot
-            #plot(data[5]["noisy"]['-1'] + data[5]["noisy"]['1'],data[5]["noise-free"]['-1'] + data[5]["noise-free"]['1'])
             mean_param = data[2]
             std = data[3]
-            #log.info('CDR_params '+str(mean_param)+str('err ')+str(std))
 
         else:
             self.inject_data(x)
@@ -583,7 +580,7 @@ class VQRegressor:
         # normal sampling
         check_noise=[]
         init_params = self.params.copy()
-        if self.noise_model != None:
+        if self.noise_model != None and self.mitigation["method"] != None:
             qm_init = self.noise_model.errors[gates.M][0][1].options[0,-1]
             noise_magnitude_init = [self.noise_model.errors[gates.I][0][1].options[j][1] for j in range(3)]
         
@@ -609,7 +606,7 @@ class VQRegressor:
 
         # ------------------------ Noise evolution -----------------------------
 
-        if self.evolution_model is not None:
+        if self.evolution_model is not None and self.noise_model is not None:
             # set to false if you don't want many logs
             noise_verbosity = False
 
@@ -638,26 +635,27 @@ class VQRegressor:
         for epoch in range(epochs):
             if epoch%self.noise_update == 0 and epoch != 0:
 
-                qm = qm_init
+                if self.evolution_model is not None:
+                    qm = qm_init
 
-                # the noise magnitude is updated according to the chosen strategy
-                if self.evolution_model == "heating" or self.evolution_model == "diffusion":
-                    noise_magnitude = abs(1+rands[epoch])*np.array(old_noise_magnitude)
-                elif self.evolution_model == "random_walk":
-                    noise_magnitude = noise_magnitudes[epoch]
+                    # the noise magnitude is updated according to the chosen strategy
+                    if self.evolution_model == "heating" or self.evolution_model == "diffusion":
+                        noise_magnitude = abs(1+rands[epoch])*np.array(old_noise_magnitude)
+                    elif self.evolution_model == "random_walk":
+                        noise_magnitude = noise_magnitudes[epoch]
 
-                if noise_verbosity:
-                    log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
-                    log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
+                    if noise_verbosity:
+                        log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
+                        log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
 
-                # tracking
-                loss_bound_evolution.append(bound_pred(self.layers, self.nqubits, noise_magnitude))
-                noise_radii.append(np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2))
-                
-                # update the old_noise_magnitude
-                old_noise_magnitude = noise_magnitude
+                    # tracking
+                    loss_bound_evolution.append(bound_pred(self.layers, self.nqubits, noise_magnitude))
+                    noise_radii.append(np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2))
+                    
+                    # update the old_noise_magnitude
+                    old_noise_magnitude = noise_magnitude
 
-                self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
+                    self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
 
             if self.mitigation['step']:
                 self.params = init_params
