@@ -19,8 +19,6 @@ from qibo.symbols import Z
 from savedata_utils import get_training_type
 from bp_utils import bound_pred, bound_grad, generate_noise_model
 
-
-
 class VQRegressor:
 
     def __init__(
@@ -297,10 +295,10 @@ class VQRegressor:
         if x is None:
             data = self.fits_iter(mit_kwargs, rand_params)
             from uniplot import plot
-            plot(data[5]["noisy"]['-1'] + data[5]["noisy"]['1'],data[5]["noise-free"]['-1'] + data[5]["noise-free"]['1'])
+            #plot(data[5]["noisy"]['-1'] + data[5]["noisy"]['1'],data[5]["noise-free"]['-1'] + data[5]["noise-free"]['1'])
             mean_param = data[2]
             std = data[3]
-            log.info('CDR_params '+str(mean_param)+str('err ')+str(std))
+            #log.info('CDR_params '+str(mean_param)+str('err ')+str(std))
 
         else:
             self.inject_data(x)
@@ -589,14 +587,13 @@ class VQRegressor:
             qm_init = self.noise_model.errors[gates.M][0][1].options[0,-1]
             noise_magnitude_init = [self.noise_model.errors[gates.I][0][1].options[j][1] for j in range(3)]
         
-
-        counter = 0
-        xs = [np.pi/3]*self.nqubits
-        self.inject_data(xs)
-        circuit, observable = self.epx_value()
-        circuit = escircuit(circuit, observable, backend = self.backend)[0]
-        exact = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
-        self.mit_params, _ = self.get_fit()
+            counter = 0
+            xs = [np.pi/3]*self.nqubits
+            self.inject_data(xs)
+            circuit, observable = self.epx_value()
+            circuit = escircuit(circuit, observable, backend = self.backend)[0]
+            exact = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+            self.mit_params, _ = self.get_fit()
         
         def random_step(point, var=0.005):
             """Random gaussian step on a 3D lattice."""
@@ -669,7 +666,7 @@ class VQRegressor:
                 if epoch != 0:
                     self.params = new_params
                     eps = abs(pred - exact)
-                    log.info(eps)
+                    #log.info(eps)
                     if eps > self.noise_threshold: 
                         noisy = self.check_noise(circuit,observable)
 
