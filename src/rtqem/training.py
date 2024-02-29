@@ -11,7 +11,7 @@ import numpy as np
 # qibo's
 from qibo import gates, set_backend
 from qibo.backends import construct_backend
-from qibo.models.error_mitigation import calibration_matrix
+from qibo.models.error_mitigation import get_response_matrix
 
 # rtqem 
 from bp_utils import bound_pred, generate_noise_model
@@ -79,17 +79,17 @@ else:
     
 readout = {}
 if conf["mitigation"]["readout"] is not None:
-    if conf["mitigation"]["readout"][0] == "calibration_matrix":
-        if conf["mitigation"]["readout"][1] == "ibu":
-            inv = False
+    if conf["mitigation"]["readout"][0] == "response_matrix":
+        if conf["mitigation"]["readout"][1] == "ibu_iters":
+            ibu_iters = 20
         else:
-            inv = True
-        cal_m = calibration_matrix(
-            1, qubit_map=conf["qubit_map"], inv=inv, backend=backend, noise_model=noise, nshots=10000
+            ibu_iters = None
+        resp_m = get_response_matrix(
+            1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=10000
         )
-        np.save(f"{cache_dir}/cal_matrix.npy", cal_m)
-        readout["calibration_matrix"] = cal_m
-        readout["inv"] = inv
+        np.save(f"{cache_dir}/resp_matrix.npy", resp_m)
+        readout["response_matrix"] = resp_m
+        readout["ibu_iters"] = ibu_iters
     elif conf["mitigation"]["readout"] == "randomized":
         readout["ncircuits"] = 10
     else:

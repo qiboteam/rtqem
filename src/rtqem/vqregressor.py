@@ -12,8 +12,9 @@ from qibo.config import log
 from qibo.hamiltonians import Hamiltonian, SymbolicHamiltonian
 from qibo.models import Circuit
 from qibo.models import error_mitigation
-from qibo.models.error_mitigation import escircuit
+from qibo.models.error_mitigation import error_sensitive_circuit, apply_resp_mat_readout_mitigation
 from qibo.symbols import Z
+from utils import fuse
 
 # rtqem's
 from savedata_utils import get_training_type
@@ -237,7 +238,7 @@ class VQRegressor:
         """This function calculates one prediction with fixed x."""
         self.inject_data(x)
         circuit, observable = self.epx_value()
-        circuit = circuit.fuse(max_qubits=1)
+        circuit = fuse(circuit, max_qubits=1)
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
@@ -256,7 +257,7 @@ class VQRegressor:
         """This function calculates one prediction with fixed x and readout mitigation."""
         self.inject_data(x)
         circuit, observable = self.epx_value()
-        circuit = circuit.fuse(max_qubits=1)
+        circuit = fuse(circuit, max_qubits=1)
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
@@ -264,7 +265,7 @@ class VQRegressor:
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
-                result = error_mitigation.apply_readout_mitigation(result, readout_args['calibration_matrix'])
+                result = apply_resp_mat_readout_mitigation(result, readout_args['response_matrix'], readout_args['ibu_iters'])
             obs =  observable.expectation_from_samples(result.frequencies()) 
         else:
             obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
@@ -591,7 +592,7 @@ class VQRegressor:
             xs = [np.pi/3]*self.nqubits
             self.inject_data(xs)
             circuit, observable = self.epx_value()
-            circuit = escircuit(circuit, observable, backend = self.backend)[0]
+            circuit = error_sensitive_circuit(circuit, observable, backend = self.backend)[0]
             exact = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
             self.mit_params, _ = self.get_fit()
         
