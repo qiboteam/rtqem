@@ -555,7 +555,7 @@ class vqregressor:
                 )
             )
 
-        cache_dir = f"{self.example}/4q_updateInf/cache"
+        cache_dir = f"{self.example}/cache_{self.noise_threshold}"
 
         if self.noise_model is not None:
             noise = True
