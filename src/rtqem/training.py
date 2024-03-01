@@ -81,7 +81,7 @@ elif conf["quantum_spain"]:
     from qibo.models.circuit import Circuit
     from qibo.result import MeasurementOutcomes
     
-    configuration = ConnectionConfiguration(username = "alejandro.sopena",api_key = "23287d7c-cd0c-4dfd-90d3-9fb506c11dee")
+    configuration = ConnectionConfiguration(username = "user",api_key = "key")
     class QuantumSpain(NumpyBackend):
         def __init__(self, configuration, device_id, nqubits):
             super().__init__()
