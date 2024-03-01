@@ -15,6 +15,7 @@ from qibo.models import error_mitigation
 from qibo.models.error_mitigation import error_sensitive_circuit, apply_resp_mat_readout_mitigation
 from qibo.symbols import Z
 from utils import fuse
+from qibo.backends import GlobalBackend
 
 # rtqem's
 from savedata_utils import get_training_type
@@ -238,11 +239,13 @@ class VQRegressor:
         """This function calculates one prediction with fixed x."""
         self.inject_data(x)
         circuit, observable = self.epx_value()
-        circuit = fuse(circuit, max_qubits=1)
+        if self.backend.name != 'QuantumSpain':
+            circuit = fuse(circuit, max_qubits=1)
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
-            circuit = self.transpile_circ(circuit)
+            if self.backend.name != 'QuantumSpain':
+                circuit = self.transpile_circ(circuit)
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
             obs =  observable.expectation_from_samples(result.frequencies()) 
         else:
@@ -257,11 +260,13 @@ class VQRegressor:
         """This function calculates one prediction with fixed x and readout mitigation."""
         self.inject_data(x)
         circuit, observable = self.epx_value()
-        circuit = fuse(circuit, max_qubits=1)
+        if self.backend.name != 'QuantumSpain':
+            circuit = fuse(circuit, max_qubits=1)
         if self.noise_model != None:
             circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
-            circuit = self.transpile_circ(circuit)
+            if self.backend.name != 'QuantumSpain':
+                circuit = self.transpile_circ(circuit)
             result = self.backend.execute_circuit(circuit, nshots=self.nshots)
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
@@ -595,7 +600,8 @@ class VQRegressor:
 
             if len(self.mit_kwargs) != 0:
                 circuit = error_sensitive_circuit(circuit, observable, backend = self.backend)[0]
-                exact = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+                backend = GlobalBackend()
+                exact = observable.expectation(backend.execute_circuit(circuit, nshots=self.nshots).state())
                 self.mit_params, _ = self.get_fit()
         
         def random_step(point, var=0.005):
