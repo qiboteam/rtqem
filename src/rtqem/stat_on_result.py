@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import qibo
 from qibo.config import log
 from qibo import gates, set_backend
-from qibo.models.error_mitigation import calibration_matrix
+from qibo.models.error_mitigation import get_response_matrix
 from qibo.backends import construct_backend
 
 # rtqem's
@@ -129,18 +129,18 @@ def main(args):
 
     readout = {}
     if conf["mitigation"]["readout"] is not None:
-        if conf["mitigation"]["readout"][0] == "calibration_matrix":
-            if conf["mitigation"]["readout"][1] == "ibu":
-                inv = False
+        if conf["mitigation"]["readout"][0] == "response_matrix":
+            if conf["mitigation"]["readout"][1] == "ibu_iters":
+                ibu_iters = 20
             else:
-                inv = True
-            cal_m = calibration_matrix(
-                1, qubit_map=conf["qubit_map"], inv=inv, backend=backend, noise_model=noise, nshots=100000
+                ibu_iters = None
+            cal_m = get_response_matrix(
+                1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=100000
             )
             log.info(cal_m)
             np.save(f"{cache_dir}/cal_matrix.npy", cal_m)
-            readout["calibration_matrix"] = cal_m
-            readout["inv"] = inv
+            readout["response_matrix"] = resp_m
+            readout["ibu_iters"] = ibu_iters
         elif conf["mitigation"]["readout"] == "randomized":
             readout["ncircuits"] = 10
         else:
