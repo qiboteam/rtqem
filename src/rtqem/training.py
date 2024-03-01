@@ -62,7 +62,7 @@ if conf["noise"]:
         print('bound', bounds)
         np.save(f"{cache_dir}/pred_bound", np.array(bounds))
 else:
-    print("Noisless model is executed.")
+    print("Noiseless model is executed.")
     noise = None
 
 if conf["qibolab"]:
