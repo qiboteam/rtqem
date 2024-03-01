@@ -197,7 +197,7 @@ class VQRegressor:
     def transpile_circ(self, circuit):
         from qibolab.transpilers.unitary_decompositions import u3_decomposition
         if self.backend.name == 'qibolab':
-            new_c = Circuit(self.backend.platform.nqubits)
+            new_c = Circuit(self.backend.platform.nqubits, density_matrix=True)
             for gate in circuit.queue:
                 qubits = [self.qubit_map[j] for j in gate.qubits]
                 if isinstance(gate, gates.M):
@@ -592,9 +592,11 @@ class VQRegressor:
             xs = [np.pi/3]*self.nqubits
             self.inject_data(xs)
             circuit, observable = self.epx_value()
-            circuit = error_sensitive_circuit(circuit, observable, backend = self.backend)[0]
-            exact = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
-            self.mit_params, _ = self.get_fit()
+
+            if len(self.mit_kwargs) != 0:
+                circuit = error_sensitive_circuit(circuit, observable, backend = self.backend)[0]
+                exact = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
+                self.mit_params, _ = self.get_fit()
         
         def random_step(point, var=0.005):
             """Random gaussian step on a 3D lattice."""
@@ -610,7 +612,7 @@ class VQRegressor:
 
         # ------------------------ Noise evolution -----------------------------
 
-        if self.evolution_model is not None:
+        if self.evolution_model is not None and self.noise_model is not None:
             # set to false if you don't want many logs
             noise_verbosity = False
 
@@ -638,27 +640,27 @@ class VQRegressor:
         # cycle over the epochs
         for epoch in range(epochs):
             if epoch%self.noise_update == 0 and epoch != 0:
+                if self.noise_model is not None:
+                    qm = qm_init
 
-                qm = qm_init
+                    # the noise magnitude is updated according to the chosen strategy
+                    if self.evolution_model == "heating" or self.evolution_model == "diffusion":
+                        noise_magnitude = abs(1+rands[epoch])*np.array(old_noise_magnitude)
+                    elif self.evolution_model == "random_walk":
+                        noise_magnitude = noise_magnitudes[epoch]
 
-                # the noise magnitude is updated according to the chosen strategy
-                if self.evolution_model == "heating" or self.evolution_model == "diffusion":
-                    noise_magnitude = abs(1+rands[epoch])*np.array(old_noise_magnitude)
-                elif self.evolution_model == "random_walk":
-                    noise_magnitude = noise_magnitudes[epoch]
+                    if noise_verbosity:
+                        log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
+                        log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
 
-                if noise_verbosity:
-                    log.info(f"Old params q: {old_noise_magnitude}, new: {noise_magnitude}")
-                    log.info(f"Noise magnitude drift from initial: {np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2)}")
+                    # tracking
+                    loss_bound_evolution.append(bound_pred(self.layers, self.nqubits, noise_magnitude))
+                    noise_radii.append(np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2))
+                    
+                    # update the old_noise_magnitude
+                    old_noise_magnitude = noise_magnitude
 
-                # tracking
-                loss_bound_evolution.append(bound_pred(self.layers, self.nqubits, noise_magnitude))
-                noise_radii.append(np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2))
-                
-                # update the old_noise_magnitude
-                old_noise_magnitude = noise_magnitude
-
-                self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
+                    self.noise_model = generate_noise_model(qm=qm, nqubits=self.nqubits, noise_magnitude=noise_magnitude)
 
             if self.mitigation['step']:
                 self.params = init_params
