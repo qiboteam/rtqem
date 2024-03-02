@@ -235,48 +235,93 @@ class VQRegressor:
 
         return circuit, observable
 
-    def one_prediction(self, x):
+    def one_prediction(self, data, params=None):
         """This function calculates one prediction with fixed x."""
-        self.inject_data(x)
-        circuit, observable = self.epx_value()
-        if self.backend.name != 'QuantumSpain':
-            circuit = fuse(circuit, max_qubits=1)
-        if self.noise_model != None:
-            circuit = self.noise_model.apply(circuit)
-        if self.exp_from_samples:
-            if self.backend.name != 'QuantumSpain':
-                circuit = self.transpile_circ(circuit)
-            result = self.backend.execute_circuit(circuit, nshots=self.nshots)
-            obs =  observable.expectation_from_samples(result.frequencies()) 
-        else:
-            obs = observable.expectation(
-                self.backend.execute_circuit(circuit, nshots=self.nshots).state()
-            )
-        if self.obs_hardware:
-            obs = np.sqrt(abs(obs))
-        return obs
+        circuits = []
+        if params is None:
+            params = [[self.params]]*len(data)
+        for ii, x in enumerate(data):
+            params1 = params[ii]
+            for param in params1:
+                self.params = param
+                self.inject_data(x)
+                circuit, observable = self.epx_value()
+                if self.backend.name != 'QuantumSpain':
+                    circuit = fuse(circuit, max_qubits=1)
+                if self.noise_model != None:
+                    circuit = self.noise_model.apply(circuit)
+                if self.exp_from_samples and self.backend.name != 'QuantumSpain':
+                    circuit = self.transpile_circ(circuit)
+                circuits.append(circuit)
 
-    def one_prediction_readout(self, x):
-        """This function calculates one prediction with fixed x and readout mitigation."""
-        self.inject_data(x)
-        circuit, observable = self.epx_value()
-        if self.backend.name != 'QuantumSpain':
-            circuit = fuse(circuit, max_qubits=1)
-        if self.noise_model != None:
-            circuit = self.noise_model.apply(circuit)
         if self.exp_from_samples:
-            if self.backend.name != 'QuantumSpain':
-                circuit = self.transpile_circ(circuit)
-            result = self.backend.execute_circuit(circuit, nshots=self.nshots)
+            if self.backend.name == 'QuantumSpain':
+                results = self.backend.execute_circuit(circuits, nshots=self.nshots)
+            elif self.backend.name == 'numpy':
+                results = Parallel(n_jobs=min(self.nthreads,len(circuits)))(delayed(self.backend.execute_circuit)(circuit, nshots=self.nshots) for circuit in circuits)
+            else:
+                results = [self.backend.execute_circuit(circuit, nshots=self.nshots) for circuit in circuits]
+        else:
+            results = [self.backend.execute_circuit(circuit, nshots=self.nshots) for circuit in circuits]
+
+        obs_list = []
+        for result in results:
+            if self.exp_from_samples:
+                obs = observable.expectation_from_samples(result.frequencies())
+            else:
+                obs = observable.expectation(
+                    result.state()
+                )
+            if self.obs_hardware:
+                obs = np.sqrt(abs(obs))
+            obs_list.append(obs)
+        return obs_list
+
+    def one_prediction_readout(self, data, params=None):
+        """This function calculates one prediction with fixed x."""
+        circuits = []
+        if params is None:
+            params = [[self.params]]*len(data)
+        for ii, x in enumerate(data):
+            params1 = params[ii]
+            for param in params1:
+                self.params = param
+                self.inject_data(x)
+                circuit, observable = self.epx_value()
+                if self.backend.name != 'QuantumSpain':
+                    circuit = fuse(circuit, max_qubits=1)
+                if self.noise_model != None:
+                    circuit = self.noise_model.apply(circuit)
+                if self.exp_from_samples and self.backend.name != 'QuantumSpain':
+                    circuit = self.transpile_circ(circuit)
+                circuits.append(circuit)
+
+        if self.exp_from_samples:
+            if self.backend.name == 'QuantumSpain':
+                results = self.backend.execute_circuit(circuits, nshots=self.nshots)
+            # elif self.backend.name == 'numpy':
+            #     results = Parallel(n_jobs=min(self.nthreads,len(circuits)))(delayed(self.backend.execute_circuit)(circuit, nshots=self.nshots) for circuit in circuits)
+            else:
+                results = [self.backend.execute_circuit(circuit, nshots=self.nshots) for circuit in circuits]
             readout_args = self.mit_kwargs['readout']
             if readout_args != {}:
-                result = apply_resp_mat_readout_mitigation(result, readout_args['response_matrix'], readout_args['ibu_iters'])
-            obs =  observable.expectation_from_samples(result.frequencies()) 
+                results = [apply_resp_mat_readout_mitigation(result, readout_args['response_matrix'], readout_args['ibu_iters']) for result in results]
         else:
-            obs = observable.expectation(self.backend.execute_circuit(circuit, nshots=self.nshots).state())
-        if self.obs_hardware:
-            obs = np.sqrt(abs(obs))
-        return obs
+            results = [self.backend.execute_circuit(circuit, nshots=self.nshots) for circuit in circuits]
+
+        obs_list = []
+        for result in results:
+            if self.exp_from_samples:
+                obs = observable.expectation_from_samples(result.frequencies())
+            else:
+                obs = observable.expectation(
+                    result.state()
+                )
+            if self.obs_hardware:
+                obs = np.sqrt(abs(obs))
+            obs_list.append(obs)
+        return obs_list
+
 
     def fits_iter(self, mit_kwargs, rand_params):
         mit_kwargs = {key: self.mit_kwargs[key] for key in ['n_training_samples', 'readout']}
@@ -322,20 +367,23 @@ class VQRegressor:
             std = data[3]
         return [mean_param, std], data
 
-    def one_mitigated_prediction(self, x):
+    def one_mitigated_prediction(self, data, params=None):
         """This function calculates one mitigated prediction with fixed x."""
-        obs_noisy = self.one_prediction_readout(x)
         if self.mit_params is None:
             self.mit_params = self.get_fit()[0]
-        obs = (1 - self.mit_params[0]) * obs_noisy / ((1 - self.mit_params[0]) ** 2 + self.mit_params[1]**2)
-        return obs
+        obs_list = []
+        for x in data:
+            obs_noisy = self.one_prediction_readout(x, params)
+            obs = (1 - self.mit_params[0]) * obs_noisy / ((1 - self.mit_params[0]) ** 2 + self.mit_params[1]**2)
+            obs_list.append(obs)
+        return obs_list
 
-    def step_prediction(self, x):
+    def step_prediction(self, data, params=None):
         if self.mitigation["step"]:
             prediction = self.one_mitigated_prediction
         else:
             prediction = self.one_prediction
-        return prediction(x)
+        return prediction(data, params)
 
     def predict_sample(self):
         """This function returns all predictions."""
@@ -343,15 +391,52 @@ class VQRegressor:
             prediction = self.one_mitigated_prediction
         else:
             prediction = self.one_prediction
-        predictions = []
-        for x in self.data:
-            predictions.append(prediction(x))
+        predictions = prediction(self.data)
 
         return predictions
 
     # ------------------------ PERFORMING GRADIENT DESCENT -------------------------
     # --------------------------- Parameter Shift Rule -----------------------------
-    def parameter_shift(self, parameter_index, x):
+
+    def parameter_shift(self, data):
+        """This function performs the PSR for one parameter"""
+
+        original = self.params.copy()
+        params_list = []
+        for i in range(len(data)):
+
+            shifted_forward_list = []
+            shifted_backward_list = []
+            for parameter_index in range(self.nparams):
+                shifted = self.params.copy()
+                shifted[parameter_index] += (np.pi / 2) / self.scale_factors[parameter_index]
+                shifted_forward_list.append(shifted)
+                shifted = self.params.copy()
+                shifted[parameter_index] -= (np.pi/ 2) / self.scale_factors[parameter_index]
+                shifted_backward_list.append(shifted)
+
+
+            params_list.append(shifted_forward_list + shifted_backward_list)
+
+        forward_backward = self.step_prediction(data, params_list)
+        forward_backward = np.reshape(forward_backward, (len(data), 2*self.nparams))
+
+
+        results = np.zeros((len(data), self.nparams))
+
+        for i in range(len(data)):
+            forward = forward_backward[i][:self.nparams]
+            backward = forward_backward[i][self.nparams:]
+            for parameter_index in range(self.nparams):
+                result = 0.5 * (forward[parameter_index] - backward[parameter_index]) * self.scale_factors[parameter_index]
+                results[i, parameter_index] = result
+
+
+        self.params = original
+
+        return results
+
+    def parameter_shift_par(self, parameter_index, x):
         """This function performs the PSR for one parameter"""
 
         original = self.params.copy()
@@ -359,30 +444,28 @@ class VQRegressor:
 
         shifted[parameter_index] += (np.pi / 2) / self.scale_factors[parameter_index]
         self.set_parameters(shifted)
-        forward = self.step_prediction(x)
+        forward = self.step_prediction([x])[0]
 
         shifted[parameter_index] -= np.pi / self.scale_factors[parameter_index]
         self.set_parameters(shifted)
-        backward = self.step_prediction(x)
+        backward = self.step_prediction([x])[0]
 
         self.params = original
 
         result = 0.5 * (forward - backward) * self.scale_factors[parameter_index]
         return result
-
     # ------------------------- Derivative of <O> ----------------------------------
-    def circuit_derivative(self, x):
+    def circuit_derivative(self, data):
         """Derivatives of the expected value of the target observable with respect
         to the variational parameters of the circuit are performed via parameter-shift
         rule (PSR)."""
 
         if self.backend.name == 'numpy':
-            dcirc = np.array(Parallel(n_jobs=min(self.nthreads,self.nparams))(delayed(self.parameter_shift)(par,x) for par in range(self.nparams)))
+            dcirc = np.array(Parallel(n_jobs=min(self.nthreads,self.nparams))(delayed(self.parameter_shift_par)(par,x) for x in data for par in range(self.nparams)))
+            dcirc = np.reshape(dcirc,(len(data), self.nparams))
         else:
-            dcirc = np.zeros(self.nparams)
-            for par in range(self.nparams):
-                # read qibo documentation for more information about this PSR implementation
-                dcirc[par] = self.parameter_shift(par, x)
+            dcirc = self.parameter_shift(data)
+
         return dcirc
 
     # ---------------------- Derivative of the loss function -----------------------
@@ -417,19 +500,27 @@ class VQRegressor:
         loss = 0
         loss_bound = 0
         # cycle on all the sample
-        for x, y in zip(data, labels):
+
+
+
+
+
+        predictions = self.step_prediction(data)
+        dcircs_data = self.circuit_derivative(data) #[self.circuit_derivative(x) for x in data]
+
+        for i in range(len(data)):
+            dcirc = dcircs_data[i,:]
             # calculate prediction
-            prediction = self.step_prediction(x)
+            #prediction = self.step_prediction(x)
             # derivative of E[O] with respect all thetas
-            dcirc = self.circuit_derivative(x)
             # calculate loss and dloss
-            mse = prediction - y
+            mse = predictions[i] - labels[i]
             loss += mse**2
             dloss += 2 * mse * dcirc
             if self.bp_bound:
                 dloss_bound += (2 * mse * bound_grads)**2
-                if y - bound_preds > 0:
-                    loss_bound += (y - bound_preds)**2
+                if labels[i] - bound_preds > 0:
+                    loss_bound += (labels[i] - bound_preds)**2
 
 
         return dloss / len(data), loss / len(data), np.sqrt(dloss_bound) / len(data), loss_bound / len(data)
@@ -505,7 +596,7 @@ class VQRegressor:
         if mit_params is not None:
             obs = (1 - mit_params[0]) * obs / ((1 - mit_params[0]) ** 2 + mit_params[1]**2)
         return obs
-    
+
 
 
     # ---------------------- Gradient Descent ------------------------------------
@@ -592,7 +683,7 @@ class VQRegressor:
         if self.noise_model != None:
             qm_init = self.noise_model.errors[gates.M][0][1].options[0,-1]
             noise_magnitude_init = [self.noise_model.errors[gates.I][0][1].options[j][1] for j in range(3)]
-        
+
             counter = 0
             xs = [np.pi/3]*self.nqubits
             self.inject_data(xs)
@@ -603,13 +694,13 @@ class VQRegressor:
                 backend = GlobalBackend()
                 exact = observable.expectation(backend.execute_circuit(circuit, nshots=self.nshots).state())
                 self.mit_params, _ = self.get_fit()
-        
+
         def random_step(point, var=0.005):
             """Random gaussian step on a 3D lattice."""
             new_point = []
             for dim in range(3):
-                rand01 = random.random()    
-                if (rand01 >= 0.5): 
+                rand01 = random.random()
+                if (rand01 >= 0.5):
                     sgn = +1
                 else:
                     sgn = -1
@@ -662,7 +753,7 @@ class VQRegressor:
                     # tracking
                     loss_bound_evolution.append(bound_pred(self.layers, self.nqubits, noise_magnitude))
                     noise_radii.append(np.sqrt(np.sum(np.array(noise_magnitude_init) - np.array(noise_magnitude))**2))
-                    
+
                     # update the old_noise_magnitude
                     old_noise_magnitude = noise_magnitude
 
@@ -676,7 +767,7 @@ class VQRegressor:
                     self.params = new_params
                     eps = abs(pred - exact)
                     #log.info(eps)
-                    if eps > self.noise_threshold: 
+                    if eps > self.noise_threshold:
                         noisy = self.check_noise(circuit,observable)
 
                         mit_params_list = []
@@ -693,7 +784,7 @@ class VQRegressor:
                         partial_std = abs(2*(1-mean_mean)*std_mean/((1-mean_mean)**2+std_mean**2)**2)
                         error = partial_mean*mean_std + partial_std*std_std
                         total_eps = abs(error*noisy)
-                    
+
                         if eps > total_eps:
                             counter += 1
                             log.info(f'## --------- Updating CDR params because eps={eps} > threshold={self.noise_threshold}!! -------- ')
