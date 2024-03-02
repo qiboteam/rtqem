@@ -731,8 +731,8 @@ class VQRegressor:
             old_noise_magnitude = noise_magnitude_init
 
             # track loss bound history and noise magnitude sqrt(qx^2 + qy^2 + qz^2)
-            loss_bound_evolution = []
-            noise_radii = []
+        loss_bound_evolution = []
+        noise_radii = []
 
         # cycle over the epochs
         for epoch in range(epochs):

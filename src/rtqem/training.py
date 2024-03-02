@@ -19,10 +19,8 @@ from prepare_data import prepare_data
 from savedata_utils import get_training_type
 from vqregressor import VQRegressor
 
-from qiboconnection import API
 from qiboconnection.connection import ConnectionConfiguration
-from collections import Counter
-from utils import fuse
+from utils import fuse, QuantumSpain
 
 parser = argparse.ArgumentParser(description="Training the vqregressor")
 parser.add_argument("example")
@@ -77,58 +75,8 @@ if conf["qibolab"]:
     backend = construct_backend("qibolab", conf["platform"], runcard=runcard)
     backend.transpiler = None
 elif conf["quantum_spain"]:
-    from qibo.backends import NumpyBackend
-    from qibo.models.circuit import Circuit
-    from qibo.result import MeasurementOutcomes
     
     configuration = ConnectionConfiguration(username = "alejandro.sopena",api_key = "23287d7c-cd0c-4dfd-90d3-9fb506c11dee")
-    class QuantumSpain(NumpyBackend):
-        def __init__(self, configuration, device_id, nqubits):
-            super().__init__()
-            self.name = "QuantumSpain"
-            self.platform = API(configuration = configuration)
-            self.platform.select_device_id(device_id=device_id)
-            self.nqubits = nqubits
-        def transpile_circ(self, circuit, qubit_map=None):
-            if qubit_map == None:
-                qubit_map = list(range(circuit.nqubits))
-            self.qubit_map = qubit_map
-            circuit = fuse(circuit, max_qubits=1)
-            from qibolab.transpilers.unitary_decompositions import u3_decomposition
-            new_c = Circuit(self.nqubits, density_matrix=True)
-            for gate in circuit.queue:
-                qubits = [self.qubit_map[j] for j in gate.qubits]
-                if isinstance(gate, gates.M):
-                    new_gate = gates.M(*tuple(qubits), **gate.init_kwargs)
-                    new_gate.result = gate.result
-                    new_c.add(new_gate)
-                elif isinstance(gate, gates.I):
-                    new_c.add(gate.__class__(*tuple(qubits), **gate.init_kwargs))
-                else:
-                    matrix = gate.matrix()
-                    theta, phi, lamb = u3_decomposition(matrix)
-                    new_c.add([gates.RZ(*tuple(qubits),lamb),gates.RX(*tuple(qubits),np.pi/2),gates.RZ(*tuple(qubits),theta+np.pi),gates.RX(*tuple(qubits),np.pi/2),gates.RZ(*tuple(qubits),phi+np.pi)])#gates.U3(*tuple(qubits), *u3_decomposition(matrix)))
-            return new_c
-        def execute_circuit(self, circuits, nshots=1000):
-            if isinstance(circuits, list) is False:
-                circuits = [circuits]
-            for k in range(len(circuits)):
-                circuits[k] = self.transpile_circ(circuits[k])
-            #print(circuit.draw())
-            results = self.platform.execute_and_return_results(circuits, nshots=nshots, interval=10)[0]
-
-            result_list = []
-            for j, result in enumerate(results):
-                probs = result['probabilities']
-                counts = Counter()
-                for key in probs:
-                    counts[int(key,2)] = int(probs[key]*nshots)
-                result = MeasurementOutcomes(circuits[j].measurements, self, nshots=nshots)
-                result._frequencies = counts
-                result_list.append(result)
-            # if len(result_list) == 1:
-            #     return result_list[0]
-            return result_list
 
     backend = QuantumSpain(configuration=configuration, device_id=conf["platform"], nqubits=5)
     set_backend('numpy')
