@@ -142,7 +142,7 @@ def main(args):
             else:
                 ibu_iters = None
             resp_m = get_response_matrix(
-                1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=100000
+                1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=1000
             )
             log.info(resp_m)
             np.save(f"{cache_dir}/cal_matrix.npy", resp_m)
@@ -155,7 +155,7 @@ def main(args):
 
     mit_kwargs = {
         "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 1000},
-        "ICS": {"n_training_samples": 10, "readout": readout, "nshots": 10000},
+        "ICS": {"n_training_samples": 10, "readout": readout, "nshots": 1000},
         None: {},
     }
 
@@ -210,22 +210,22 @@ def main(args):
             labels.append('No mitigation')
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
-            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":None})
+            mitigation_settings.append({"step":False,"final":True,"method":"ICS","readout":None})
             colors.append('orange')
             labels.append('Mitigation after training')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":True,"final":True,"method":"mit_obs","readout":None})
+            mitigation_settings.append({"step":True,"final":True,"method":"ICS","readout":None})
             colors.append('red')
             labels.append('Real time mitigation')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":True,"final":False,"method":"mit_obs","readout":None})
+            mitigation_settings.append({"step":True,"final":False,"method":"ICS","readout":None})
             colors.append('red')
             labels.append('Mitigation training')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
+            mitigation_settings.append({"step":False,"final":True,"method":"ICS","readout":"calibration_matrix"})
             colors.append('orange')
             labels.append('Full mitigation')
 

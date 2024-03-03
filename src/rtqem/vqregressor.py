@@ -257,8 +257,6 @@ class VQRegressor:
         if self.exp_from_samples:
             if self.backend.name == 'QuantumSpain':
                 results = self.backend.execute_circuit(circuits, nshots=self.nshots)
-            elif self.backend.name == 'numpy':
-                results = Parallel(n_jobs=min(self.nthreads,len(circuits)))(delayed(self.backend.execute_circuit)(circuit, nshots=self.nshots) for circuit in circuits)
             else:
                 results = [self.backend.execute_circuit(circuit, nshots=self.nshots) for circuit in circuits]
         else:
@@ -299,8 +297,6 @@ class VQRegressor:
         if self.exp_from_samples:
             if self.backend.name == 'QuantumSpain':
                 results = self.backend.execute_circuit(circuits, nshots=self.nshots)
-            # elif self.backend.name == 'numpy':
-            #     results = Parallel(n_jobs=min(self.nthreads,len(circuits)))(delayed(self.backend.execute_circuit)(circuit, nshots=self.nshots) for circuit in circuits)
             else:
                 results = [self.backend.execute_circuit(circuit, nshots=self.nshots) for circuit in circuits]
             readout_args = self.mit_kwargs['readout']

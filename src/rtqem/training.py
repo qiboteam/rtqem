@@ -94,7 +94,7 @@ if conf["mitigation"]["readout"] is not None:
         else:
             ibu_iters = None
         resp_m = get_response_matrix(
-            1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=10000
+            1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=1000
         )
         np.save(f"{cache_dir}/resp_matrix.npy", resp_m)
         readout["response_matrix"] = resp_m

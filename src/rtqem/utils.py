@@ -149,6 +149,6 @@ class QuantumSpain(NumpyBackend):
             result = MeasurementOutcomes(circuits[j].measurements, self, nshots=nshots)
             result._frequencies = counts
             result_list.append(result)
-        # if len(result_list) == 1:
-        #     return result_list[0]
+        if len(result_list) == 1:
+            return result_list[0]
         return result_list
