@@ -106,12 +106,13 @@ def from_fused(queue):
     return queue_new
 
 class QuantumSpain(NumpyBackend):
-    def __init__(self, configuration, device_id, nqubits):
+    def __init__(self, configuration, device_id, nqubits, qubit_map=None):
         super().__init__()
         self.name = "QuantumSpain"
         self.platform = API(configuration = configuration)
         self.platform.select_device_id(device_id=device_id)
         self.nqubits = nqubits
+        self.qubit_map = qubit_map
     def transpile_circ(self, circuit, qubit_map=None):
         if qubit_map == None:
             qubit_map = list(range(circuit.nqubits))
@@ -136,10 +137,8 @@ class QuantumSpain(NumpyBackend):
         if isinstance(circuits, list) is False:
             circuits = [circuits]
         for k in range(len(circuits)):
-            circuits[k] = self.transpile_circ(circuits[k])
-        #print(circuit.draw())
+            circuits[k] = self.transpile_circ(circuits[k], self.qubit_map)
         results = self.platform.execute_and_return_results(circuits, nshots=nshots, interval=10)[0]
-
         result_list = []
         for j, result in enumerate(results):
             probs = result['probabilities']

@@ -78,7 +78,7 @@ elif conf["quantum_spain"]:
     
     configuration = ConnectionConfiguration(username = "alejandro.sopena",api_key = "23287d7c-cd0c-4dfd-90d3-9fb506c11dee")
 
-    backend = QuantumSpain(configuration=configuration, device_id=conf["platform"], nqubits=5)
+    backend = QuantumSpain(configuration=configuration, device_id=conf["platform"], nqubits=5, qubit_map=conf["qubit_map"])
     set_backend('numpy')
 else:
     set_backend('numpy')
