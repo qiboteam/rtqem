@@ -1,5 +1,12 @@
 from qibo import gates
 from qibo.gates.special import FusedGate
+from qibo.backends import NumpyBackend
+from qibo.models.circuit import Circuit
+from qibo.result import MeasurementOutcomes
+from qiboconnection import API
+from collections import Counter
+import numpy as np
+
 
 class FusedGate1(FusedGate):
     @classmethod
@@ -97,3 +104,50 @@ def from_fused(queue):
             # to add them manually
             queue_new.append(gate.gates[0])
     return queue_new
+
+class QuantumSpain(NumpyBackend):
+    def __init__(self, configuration, device_id, nqubits, qubit_map=None):
+        super().__init__()
+        self.name = "QuantumSpain"
+        self.platform = API(configuration = configuration)
+        self.platform.select_device_id(device_id=device_id)
+        self.nqubits = nqubits
+        self.qubit_map = qubit_map
+    def transpile_circ(self, circuit, qubit_map=None):
+        if qubit_map == None:
+            qubit_map = list(range(circuit.nqubits))
+        self.qubit_map = qubit_map
+        circuit = fuse(circuit, max_qubits=1)
+        from qibolab.transpilers.unitary_decompositions import u3_decomposition
+        new_c = Circuit(self.nqubits, density_matrix=True)
+        for gate in circuit.queue:
+            qubits = [self.qubit_map[j] for j in gate.qubits]
+            if isinstance(gate, gates.M):
+                new_gate = gates.M(*tuple(qubits), **gate.init_kwargs)
+                new_gate.result = gate.result
+                new_c.add(new_gate)
+            elif isinstance(gate, gates.I):
+                new_c.add(gate.__class__(*tuple(qubits), **gate.init_kwargs))
+            else:
+                matrix = gate.matrix()
+                theta, phi, lamb = u3_decomposition(matrix)
+                new_c.add([gates.RZ(*tuple(qubits),lamb),gates.RX(*tuple(qubits),np.pi/2),gates.RZ(*tuple(qubits),theta+np.pi),gates.RX(*tuple(qubits),np.pi/2),gates.RZ(*tuple(qubits),phi+np.pi)])#gates.U3(*tuple(qubits), *u3_decomposition(matrix)))
+        return new_c
+    def execute_circuit(self, circuits, nshots=1000):
+        if isinstance(circuits, list) is False:
+            circuits = [circuits]
+        for k in range(len(circuits)):
+            circuits[k] = self.transpile_circ(circuits[k], self.qubit_map)
+        results = self.platform.execute_and_return_results(circuits, nshots=nshots, interval=10)[0]
+        result_list = []
+        for j, result in enumerate(results):
+            probs = result['probabilities']
+            counts = Counter()
+            for key in probs:
+                counts[int(key,2)] = int(probs[key]*nshots)
+            result = MeasurementOutcomes(circuits[j].measurements, self, nshots=nshots)
+            result._frequencies = counts
+            result_list.append(result)
+        if len(result_list) == 1:
+            return result_list[0]
+        return result_list

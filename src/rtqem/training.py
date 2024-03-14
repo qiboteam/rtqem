@@ -19,6 +19,9 @@ from prepare_data import prepare_data
 from savedata_utils import get_training_type
 from vqregressor import VQRegressor
 
+from qiboconnection.connection import ConnectionConfiguration
+from utils import fuse, QuantumSpain
+
 parser = argparse.ArgumentParser(description="Training the vqregressor")
 parser.add_argument("example")
 
@@ -71,6 +74,12 @@ if conf["qibolab"]:
         runcard = Path(runcard)
     backend = construct_backend("qibolab", conf["platform"], runcard=runcard)
     backend.transpiler = None
+elif conf["quantum_spain"]:
+    
+    configuration = ConnectionConfiguration(username = "alejandro.sopena",api_key = "23287d7c-cd0c-4dfd-90d3-9fb506c11dee")
+
+    backend = QuantumSpain(configuration=configuration, device_id=conf["platform"], nqubits=5, qubit_map=conf["qubit_map"])
+    set_backend('numpy')
 else:
     set_backend('numpy')
     #set_threads(5)
@@ -85,7 +94,7 @@ if conf["mitigation"]["readout"] is not None:
         else:
             ibu_iters = None
         resp_m = get_response_matrix(
-            1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=10000
+            1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=1000
         )
         np.save(f"{cache_dir}/resp_matrix.npy", resp_m)
         readout["response_matrix"] = resp_m
@@ -96,8 +105,8 @@ if conf["mitigation"]["readout"] is not None:
         raise AssertionError("Invalid readout mitigation method specified.")
 
 mit_kwargs = {
-    "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 10000},
-    "ICS": {"n_training_samples": 20, "readout": readout, "nshots": 10000},
+    "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 1000},
+    "ICS": {"n_training_samples": 20, "readout": readout, "nshots": 1000},
     None: {},
 }
 

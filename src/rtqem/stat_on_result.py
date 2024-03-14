@@ -17,6 +17,8 @@ from qibo.backends import construct_backend
 from prepare_data import prepare_data
 from bp_utils import bound_pred, generate_noise_model
 from vqregressor import VQRegressor
+from utils import QuantumSpain
+from qiboconnection.connection import ConnectionConfiguration
 
 qibo.set_backend('numpy')
 
@@ -55,8 +57,8 @@ parser.add_argument(
 
 # ---------------------- MAIN FUNCTION -----------------------------------------
 
-ndata = 30
-nruns = 20
+ndata = 20
+nruns = 10
 
 
 def plot(fit_axis, loss_grad_axes, data, means, stds, loss_history, loss_bound_history, grad_history, grad_bound_history, color, label):
@@ -123,6 +125,11 @@ def main(args):
     if conf["qibolab"]:        
         backend = construct_backend("qibolab", conf["platform"])
         #backend.transpiler = None
+    elif conf["quantum_spain"]:        
+        configuration = ConnectionConfiguration(username = "alejandro.sopena",api_key = "23287d7c-cd0c-4dfd-90d3-9fb506c11dee")
+        backend = QuantumSpain(configuration=configuration, device_id=conf["platform"], nqubits=5, qubit_map=conf["qubit_map"])
+        set_backend('numpy')
+
     else:
         set_backend('numpy')
         backend = construct_backend("numpy")
@@ -134,11 +141,11 @@ def main(args):
                 ibu_iters = 20
             else:
                 ibu_iters = None
-            cal_m = get_response_matrix(
-                1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=100000
+            resp_m = get_response_matrix(
+                1, qubit_map=conf["qubit_map"], backend=backend, noise_model=noise, nshots=1000
             )
-            log.info(cal_m)
-            np.save(f"{cache_dir}/cal_matrix.npy", cal_m)
+            log.info(resp_m)
+            np.save(f"{cache_dir}/cal_matrix.npy", resp_m)
             readout["response_matrix"] = resp_m
             readout["ibu_iters"] = ibu_iters
         elif conf["mitigation"]["readout"] == "randomized":
@@ -148,7 +155,7 @@ def main(args):
 
     mit_kwargs = {
         "CDR": {"n_training_samples": 5, "readout": readout, "N_update": 0, "nshots": 1000},
-        "mit_obs": {"n_training_samples": 10, "readout": readout, "nshots": 10000},
+        "ICS": {"n_training_samples": 10, "readout": readout, "nshots": 1000},
         None: {},
     }
 
@@ -203,22 +210,22 @@ def main(args):
             labels.append('No mitigation')
         if f"best_params_{conf['optimizer']}_unmitigated" in f:
             settings.append("unmitigated_step_no_final_no")
-            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":None})
+            mitigation_settings.append({"step":False,"final":True,"method":"ICS","readout":None})
             colors.append('orange')
             labels.append('Mitigation after training')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":True,"final":True,"method":"mit_obs","readout":None})
+            mitigation_settings.append({"step":True,"final":True,"method":"ICS","readout":None})
             colors.append('red')
             labels.append('Real time mitigation')
         if f"best_params_{conf['optimizer']}_realtime_mitigation_step_yes_final_yes" in f:
             settings.append("realtime_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":True,"final":False,"method":"mit_obs","readout":None})
+            mitigation_settings.append({"step":True,"final":False,"method":"ICS","readout":None})
             colors.append('red')
             labels.append('Mitigation training')
         if f"best_params_{conf['optimizer']}_full_mitigation_step_yes_final_yes" in f:
             settings.append("full_mitigation_step_yes_final_yes")
-            mitigation_settings.append({"step":False,"final":True,"method":"mit_obs","readout":"calibration_matrix"})
+            mitigation_settings.append({"step":False,"final":True,"method":"ICS","readout":"calibration_matrix"})
             colors.append('orange')
             labels.append('Full mitigation')
 
@@ -244,7 +251,7 @@ def main(args):
             backend=backend,
             nshots=conf["nshots"],
             expectation_from_samples=conf["expectation_from_samples"],
-            noise_model=[noise_setting,None,None],
+            noise_model=[noise_setting,None,None,None,None],
             bp_bound=conf["bp_bound"],
             mitigation=mitigation,
             mit_kwargs=mit_kwargs[mitigation["method"]],
@@ -262,7 +269,7 @@ def main(args):
 
         predictions = []
 
-        VQR.mit_params = VQR.get_fit()[0]
+        #VQR.mit_params = VQR.get_fit()[0]
 
         def get_pred(j):
             pred = VQR.predict_sample()
